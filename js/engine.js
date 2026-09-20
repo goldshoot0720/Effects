@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -771,9 +771,20 @@ function fitLine(line) {
   return { size: size, rows: rows, L: layout(line, size, rows) };
 }
 
+/* Row spacing and the exact half-height of a rendered lyric block, so
+   neighbouring lines can be placed without ever overlapping. */
+const LH_KIN = 1.25, LH_SUB = 1.3;
+function isDense(L) { return L.chars.length > 22 || L.rows >= 3; }
+function blockHalf(line) {
+  const f = fitLine(line);
+  const dense = isDense(f.L);
+  const lh = dense ? LH_SUB : LH_KIN;
+  return ((f.L.rows - 1) * lh + (dense ? 1.9 : 1.35)) * f.size / 2;
+}
+
 /* Readable subtitle block: dark plate + outlined text, no per-glyph FX. */
 function drawSubtitle(line, t, yBase, L, size, ga, outP, age) {
-  const lh = size * 1.3;
+  const lh = size * LH_SUB;
   const y0 = yBase - (L.rows - 1) * lh / 2;
   const p = clamp(age / .45, 0, 1);
   const a = ga * p * (1 - outP);
@@ -843,7 +854,7 @@ function drawLine(line, t, yBase, opts) {
   // spoken-dialogue lines (50-80 characters); extruding and glowing every
   // glyph of those just smears into a bright blur, so they get a plain,
   // outlined subtitle instead.
-  if (L.chars.length > 22 || L.rows >= 3) {
+  if (isDense(L)) {
     drawSubtitle(line, t, yBase, L, size, ga, outP, age);
     return;
   }
@@ -879,7 +890,7 @@ function drawLine(line, t, yBase, opts) {
       split: 0, stroke: 0
     };
     let x = L.pos[i];
-    let y = (L.row[i] - (L.rows - 1) / 2) * size * 1.18;
+    let y = (L.row[i] - (L.rows - 1) / 2) * size * LH_KIN;
 
     switch (preset) {
       case 'zoom':
@@ -1400,20 +1411,32 @@ function frame(now) {
     const outAt = cur.t + cur.d;
     // a tall wrapped block must not run under the waveform / transport,
     // which is where a landscape phone puts it otherwise
-    const f0 = fitLine(cur);
-    const half = ((f0.rows - 1) * 1.3 + 1) * f0.size / 2 + f0.size * .5;
+    // a tall wrapped block must not run under the waveform / transport,
+    // which is where a landscape phone puts it otherwise
+    const half = blockHalf(cur);
     const hi = H * .74 - half, lo = H * .34;
     yMain = hi < lo ? H * .52 : clamp(yMain, lo, hi);
-    if (prev && lt < prev.t + prev.d + .75 && f0.rows < 3) {
-      drawLine(prev, lt, yMain - MIN * .17, {
-        alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
-      });
+
+    // the fading previous line only appears when it fits completely above
+    // the current block — lyrics must never sit on top of each other
+    if (prev && lt < prev.t + prev.d + .75) {
+      const pHalf = blockHalf(prev);
+      const py = yMain - half - pHalf - MIN * .022;
+      if (py - pHalf > H * .10) {
+        drawLine(prev, lt, py, {
+          alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
+        });
+      }
     }
     if (lt < outAt + .55) drawLine(cur, lt, yMain, { outAt: outAt });
+
     const nx = LY.lines[curIdx + 1];
     if (nx && nx.t - lt < 1.1 && lt > outAt - .2) {
-      caption(nx.text, Math.min(yMain + MIN * .11, H * .78), MIN * .026,
-              clamp(1 - (nx.t - lt) / 1.1, 0, 1) * .22, P.ink, LX, LW);
+      const ny = yMain + half + MIN * .045;
+      if (ny + MIN * .02 < H * .80) {
+        caption(nx.text, ny, MIN * .026,
+                clamp(1 - (nx.t - lt) / 1.1, 0, 1) * .22, P.ink, LX, LW);
+      }
     }
   }
   if (act === 'outro') drawOutro(lt);
