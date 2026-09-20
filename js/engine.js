@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1452,6 +1452,9 @@ function frame(now) {
 
 /* ============================ UI / TRANSPORT ======================= */
 const elHead = $('#head'), elTime = $('#time'), elNow = $('#now'), elPlay = $('#play');
+elTime.style.cursor = 'pointer';
+elTime.title = '點一下輸入時間跳轉';
+elTime.onclick = () => { const g = $('#goto'); g.value = fmt(clock); g.focus(); };
 function updateTransport(t, idx) {
   elHead.style.left = (clamp(t / DUR, 0, 1) * 100) + '%';
   elTime.textContent = `${fmt(t)} / ${fmt(DUR)}`;
@@ -1537,6 +1540,38 @@ audio.addEventListener('ended', () => {
 elPlay.onclick = toggle;
 $('#bPrev').onclick = () => loadSong(songIdx - 1, true);
 $('#bNext').onclick = () => loadSong(songIdx + 1, true);
+const SKIP = 10;
+$('#bBack10').onclick = () => { seek(clock - SKIP); toast('倒退 10 秒'); };
+$('#bFwd10').onclick = () => { seek(clock + SKIP); toast('快進 10 秒'); };
+
+/* jump straight to a timestamp: "83", "1:23", "1:23.5" or "0:01:23" */
+const gotoEl = $('#goto');
+function parseTime(str) {
+  const raw = String(str).trim().replace(/[：]/g, ':');
+  if (!raw) return null;
+  if (!/^[0-9:.]+$/.test(raw)) return null;
+  const parts = raw.split(':');
+  if (parts.length > 3) return null;
+  let sec = 0;
+  for (const part of parts) {
+    if (part !== '' && isNaN(parseFloat(part))) return null;
+    sec = sec * 60 + (parseFloat(part) || 0);
+  }
+  return isFinite(sec) ? sec : null;
+}
+function doGoto() {
+  const sec = parseTime(gotoEl.value);
+  if (sec === null) { toast('時間格式：1:23 或 83'); return; }
+  seek(Math.min(sec, DUR - .05));
+  toast('跳到 ' + fmt(Math.min(sec, DUR)));
+  gotoEl.blur();
+}
+gotoEl.addEventListener('keydown', e => {
+  e.stopPropagation();                       // never let shortcuts eat typing
+  if (e.key === 'Enter') { e.preventDefault(); doGoto(); }
+  else if (e.key === 'Escape') { gotoEl.value = ''; gotoEl.blur(); }
+});
+gotoEl.addEventListener('focus', () => { gotoEl.select(); wake(); });
 
 const scrub = $('#scrub'), hov = $('#hov');
 scrub.addEventListener('pointerdown', e => {
@@ -1677,10 +1712,12 @@ addEventListener('drop', e => {
 
 /* ----------------------------- keyboard ---------------------------- */
 addEventListener('keydown', e => {
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
   const k = e.key.toLowerCase();
   if (k === ' ') { e.preventDefault(); editing ? tapSync() : toggle(); }
-  else if (k === 'arrowleft') { e.preventDefault(); editing ? nudge(-.1) : seek(clock - 5); }
-  else if (k === 'arrowright') { e.preventDefault(); editing ? nudge(.1) : seek(clock + 5); }
+  else if (k === 'arrowleft') { e.preventDefault(); editing ? nudge(-.1) : seek(clock - SKIP); }
+  else if (k === 'arrowright') { e.preventDefault(); editing ? nudge(.1) : seek(clock + SKIP); }
   else if (k === 'z' && editing) { editIdx = Math.max(0, editIdx - 1); paintEditor(); }
   else if (k === '[') { OFFSET -= .1; persist(); toast('整體位移 ' + OFFSET.toFixed(1) + 's'); lastIdx = -2; }
   else if (k === ']') { OFFSET += .1; persist(); toast('整體位移 ' + OFFSET.toFixed(1) + 's'); lastIdx = -2; }
@@ -1700,7 +1737,8 @@ function wake() {
   document.body.classList.remove('idle');
   clearTimeout(idleT);
   idleT = setTimeout(() => {
-    if (playing && !editing && $('#start').classList.contains('gone')) document.body.classList.add('idle');
+    if (playing && !editing && $('#start').classList.contains('gone')
+        && document.activeElement !== $('#goto')) document.body.classList.add('idle');
   }, 2600);
 }
 addEventListener('mousemove', wake); addEventListener('keydown', wake);

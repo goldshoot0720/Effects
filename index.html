@@ -52,6 +52,14 @@
   #play{width:52px;height:52px;border-radius:50%;padding:0;font-size:17px;flex:0 0 auto;
     border-color:rgba(255,210,74,.55);color:var(--gold);background:rgba(255,210,74,.1)}
   .nav{width:38px;height:38px;border-radius:50%;padding:0;font-size:12px;flex:0 0 auto}
+  .skip{padding:10px 13px;font-size:11px;letter-spacing:.08em;flex:0 0 auto;
+    font-variant-numeric:tabular-nums}
+  .skip:active{transform:scale(.94)}
+  #goto{width:104px;text-align:center;font-variant-numeric:tabular-nums;outline:none;
+    color:var(--ink);letter-spacing:.1em}
+  #goto::placeholder{color:var(--dim2);letter-spacing:.06em}
+  #goto:focus{border-color:rgba(255,210,74,.8);color:var(--gold);
+    background:rgba(255,210,74,.1)}
   #time{font-size:12px;letter-spacing:.14em;color:var(--dim);font-variant-numeric:tabular-nums;min-width:112px}
   #now{margin-left:auto;font-size:12px;letter-spacing:.2em;color:var(--dim);
     max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
@@ -127,6 +135,8 @@
     button.b{font-size:10px;padding:8px 11px;letter-spacing:.12em}
     #play{width:46px;height:46px}
     .nav{width:34px;height:34px}
+    .skip{padding:9px 10px;font-size:10px}
+    #goto{width:84px;font-size:10px;padding:8px 6px}
     #time{font-size:11px;min-width:96px}
     #marks b{display:none}
   }
@@ -157,10 +167,14 @@
     <div class="head" id="head"></div>
   </div>
   <div id="row">
-    <button class="b nav" id="bPrev">◀</button>
+    <button class="b nav" id="bPrev" title="上一首 P">⏮</button>
+    <button class="b skip" id="bBack10" title="倒退 10 秒 ←">↺ 10</button>
     <button class="b" id="play">▶</button>
-    <button class="b nav" id="bNext">▶</button>
+    <button class="b skip" id="bFwd10" title="快進 10 秒 →">10 ↻</button>
+    <button class="b nav" id="bNext" title="下一首 N">⏭</button>
     <div id="time">0:00 / 0:00</div>
+    <input id="goto" class="b" type="text" inputmode="numeric" autocomplete="off"
+           spellcheck="false" maxlength="9" placeholder="跳到 1:23" title="輸入時間後按 Enter 跳轉">
     <button class="b" id="bList">歌曲 S</button>
     <button class="b" id="bLyr">字幕 L</button>
     <button class="b" id="bEdit">校時 E</button>
@@ -194,14 +208,15 @@
     <div class="sub">CANVAS 3D MOTION GRAPHICS · 音樂視覺同步</div>
     <div id="grid"></div>
     <div class="keys">
-      <kbd>空白</kbd> 播放/暫停　<kbd>←</kbd><kbd>→</kbd> 快轉 5 秒　<kbd>S</kbd> 選歌　<kbd>L</kbd> 字幕　<kbd>F</kbd> 全螢幕　<kbd>Q</kbd> 畫質<br>
+      <kbd>空白</kbd> 播放/暫停　<kbd>←</kbd><kbd>→</kbd> 倒退 / 快進 10 秒　<kbd>S</kbd> 選歌　<kbd>L</kbd> 字幕　<kbd>F</kbd> 全螢幕　<kbd>Q</kbd> 畫質<br>
+      下方輸入框可直接打 <kbd>1:23</kbd> 或秒數按 Enter 跳轉　
       <kbd>E</kbd> 歌詞校時（可自己敲準時間軸後匯出 .lrc）　拖曳 .lrc 進畫面即可套用
     </div>
   </div>
 </div>
 
 <audio id="audio" preload="auto"></audio>
-<script src="data/songs.js?v=1.0.2"></script>
-<script src="js/engine.js?v=1.0.2"></script>
+<script src="data/songs.js?v=1.0.3"></script>
+<script src="js/engine.js?v=1.0.3"></script>
 </body>
 </html>
