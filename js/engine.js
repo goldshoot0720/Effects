@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -618,6 +618,34 @@ function keyMask(text) {
   return m;
 }
 const PRESETS = ['zoom', 'drop', 'slide', 'flip', 'burst', 'spin', 'wave', 'type'];
+
+/* Row breaks for a wrapped line. The long narration lines separate their
+   phrases with spaces, so break there when a space sits anywhere near the
+   even split; only chop mid-phrase when there is none. Returns the end
+   index of every row. */
+function rowBreaks(all, rowCount) {
+  const n = all.length;
+  if (rowCount <= 1) return [n];
+  const per = n / rowCount, ends = [];
+  let start = 0;
+  for (let r = 0; r < rowCount - 1; r++) {
+    const ideal = Math.round(per * (r + 1));
+    const win = Math.max(2, Math.round(per * .45));
+    const lo = Math.max(start + 1, ideal - win);
+    const hi = Math.min(n - (rowCount - r - 1), ideal + win);
+    let cut = -1, best = 1e9;
+    for (let i = lo; i <= hi; i++) {
+      if (all[i - 1] !== ' ' || all[i] === ' ') continue;   // break just after a space
+      const d = Math.abs(i - ideal);
+      if (d < best) { best = d; cut = i; }
+    }
+    if (cut < 0) cut = clamp(ideal, start + 1, Math.max(start + 1, n - (rowCount - r - 1)));
+    ends.push(cut); start = cut;
+  }
+  ends.push(n);
+  return ends;
+}
+
 const layoutCache = new Map();
 function layout(line, size, rowCount) {
   rowCount = rowCount || 1;
@@ -626,14 +654,17 @@ function layout(line, size, rowCount) {
   if (L) return L;
   font(size, 900);
   const all = [...line.text];
-  const gap = size * .02;
-  const per = Math.ceil(all.length / rowCount);
+  const gap = size * .035;
+  const ends = rowBreaks(all, rowCount);
   const chars = [], pos = [], row = [];
-  let total = 0;
-  for (let r = 0; r < rowCount; r++) {
-    const part = all.slice(r * per, (r + 1) * per);
+  let total = 0, from = 0;
+  for (let r = 0; r < ends.length; r++) {
+    const part = all.slice(from, ends[r]);
+    from = ends[r];
     if (!part.length) continue;
-    const ws = part.map(c => ctx.measureText(c).width);
+    // a space that only marks the break adds no width at a row edge
+    const ws = part.map((c, i) =>
+      c === ' ' && (i === 0 || i === part.length - 1) ? 0 : ctx.measureText(c).width);
     const w = ws.reduce((a, b) => a + b, 0) + gap * (part.length - 1);
     total = Math.max(total, w);
     let x = -w / 2;
@@ -705,11 +736,20 @@ function glyph(ch, x, y, size, o) {
   ctx.restore();
 }
 
+/* The lyric list is a fixed 330px column on a wide screen, so centre the
+   sung line in what is left of the stage instead of running under it. */
+let LX = 0, LW = 0;
+function lyricArea() {
+  const el = $('#panel');
+  const pw = (el && innerWidth > 820 && !el.classList.contains('hide')) ? 330 * DPR : 0;
+  LX = CX - pw / 2; LW = W - pw;
+}
+
 /* Picks a readable size for a lyric line, wrapping it onto extra rows
    rather than shrinking it to nothing on a narrow (phone) screen. */
 function fitLine(line) {
   const chorus = line.kind === 'chorus';
-  const maxW = W * (chorus ? .86 : .82);
+  const maxW = (LW || W) * (chorus ? .86 : .82);
   const cap = chorus ? MIN * .088 : MIN * .072;
   let rows = 1;
   let size = Math.min(cap, maxW / (layout(line, 100, 1).total / 100));
@@ -720,6 +760,60 @@ function fitLine(line) {
     rows = next; size = s2;
   }
   return { size: size, rows: rows, L: layout(line, size, rows) };
+}
+
+/* Readable subtitle block: dark plate + outlined text, no per-glyph FX. */
+function drawSubtitle(line, t, yBase, L, size, ga, outP, age) {
+  const lh = size * 1.3;
+  const y0 = yBase - (L.rows - 1) * lh / 2;
+  const p = clamp(age / .45, 0, 1);
+  const a = ga * p * (1 - outP);
+  if (a <= .01) return;
+  const rise = (1 - easeOut(p)) * size * .35;
+
+  // backing plate keeps white text off the bright background and stops the
+  // bloom pass from blowing the whole block out
+  const padX = size * .55, padY = size * .45;
+  const w = L.total + padX * 2, h = (L.rows - 1) * lh + size + padY * 2;
+  const x = LX - w / 2, y = y0 - size / 2 - padY + rise;
+  ctx.save();
+  const g = ctx.createLinearGradient(x, y, x, y + h);
+  g.addColorStop(0, `rgba(3,4,10,${a * .30})`);
+  g.addColorStop(.5, `rgba(3,4,10,${a * .52})`);
+  g.addColorStop(1, `rgba(3,4,10,${a * .30})`);
+  ctx.fillStyle = g;
+  if (ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, size * .28); ctx.fill();
+  } else {
+    ctx.fillRect(x, y, w, h);
+  }
+  // accent hairline top and bottom
+  ctx.fillStyle = rgb(P.a2, a * .45);
+  ctx.fillRect(x + w * .12, y, w * .76, Math.max(1, S(1.2)));
+  ctx.fillRect(x + w * .12, y + h - Math.max(1, S(1.2)), w * .76, Math.max(1, S(1.2)));
+
+  font(size, 800);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1, size * .16);
+  ctx.strokeStyle = `rgba(0,0,0,${a * .75})`;
+  const beat = 1 + F.beat * .012;
+  for (let i = 0; i < L.chars.length; i++) {
+    const ch = L.chars[i];
+    if (ch === ' ') continue;
+    const cx = LX + L.pos[i] * beat;
+    const cy = y0 + L.row[i] * lh + rise;
+    ctx.strokeText(ch, cx, cy);
+  }
+  for (let i = 0; i < L.chars.length; i++) {
+    const ch = L.chars[i];
+    if (ch === ' ') continue;
+    const cx = LX + L.pos[i] * beat;
+    const cy = y0 + L.row[i] * lh + rise;
+    ctx.fillStyle = L.mask[i] ? rgb(P.a2, a) : `rgba(240,245,255,${a})`;
+    ctx.fillText(ch, cx, cy);
+  }
+  ctx.restore();
 }
 
 function drawLine(line, t, yBase, opts) {
@@ -735,6 +829,15 @@ function drawLine(line, t, yBase, opts) {
   const ga = (opts && opts.alpha !== undefined) ? opts.alpha : 1;
   if (ga <= .01) return;
   const outP = t > outAt ? clamp((t - outAt) / OUT, 0, 1) : 0;
+
+  // Kinetic typography is for short hook lines. These songs also carry long
+  // spoken-dialogue lines (50-80 characters); extruding and glowing every
+  // glyph of those just smears into a bright blur, so they get a plain,
+  // outlined subtitle instead.
+  if (L.chars.length > 22 || L.rows >= 3) {
+    drawSubtitle(line, t, yBase, L, size, ga, outP, age);
+    return;
+  }
 
   for (let i = 0; i < L.chars.length; i++) {
     const ch = L.chars[i];
@@ -794,17 +897,17 @@ function drawLine(line, t, yBase, opts) {
       y -= oe * size * .35;
     }
     o.alpha *= ga;
-    glyph(ch, CX + x + CAM.shx * .6, yBase + y + CAM.shy * .6, size, o);
+    glyph(ch, LX + x + CAM.shx * .6, yBase + y + CAM.shy * .6, size, o);
   }
 
   if (chorus && outP === 0) {             // lower-third rule under chorus lines
     const p = clamp(age / .8, 0, 1);
     const w = L.total * easeOut(p) * .5;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createLinearGradient(CX - w, 0, CX + w, 0);
+    const g = ctx.createLinearGradient(LX - w, 0, LX + w, 0);
     g.addColorStop(0, rgb(P.a2, 0)); g.addColorStop(.5, rgb(P.a2, .55 * ga)); g.addColorStop(1, rgb(P.a2, 0));
     ctx.fillStyle = g;
-    ctx.fillRect(CX - w, yBase + (L.rows - 1) / 2 * size * 1.18 + size * .78,
+    ctx.fillRect(LX - w, yBase + (L.rows - 1) / 2 * size * 1.18 + size * .78,
                  w * 2, Math.max(1, S(2)));
     ctx.restore();
   }
@@ -894,16 +997,27 @@ function drawCard(text, cy, size, t, t0, t1, style) {
   return { size: size, bottom: y0 + (fit.lines.length - 1) * lh + size * .6 };
 }
 
-function caption(text, cy, size, alpha, col) {
+function caption(text, cy, size, alpha, col, cx, maxw) {
   if (alpha <= .01 || !text) return;
   ctx.save();
   font(size, 400);
-  const w = ctx.measureText(text).width;
-  if (w > W * .9) { size = size * W * .9 / w; font(size, 400); }
+  if (cx === undefined) cx = CX;
+  const maxW = (maxw || W) * .9;
+  let w = ctx.measureText(text).width;
+  if (w > maxW) {
+    // shrink a little, then clip — a 60-character narration line scaled to
+    // fit on one row is unreadable mush, an ellipsis is not
+    size *= Math.max(.75, maxW / w); font(size, 400);
+    if (ctx.measureText(text).width > maxW) {
+      const cs = [...text];
+      while (cs.length > 2 && ctx.measureText(cs.join('') + '…').width > maxW) cs.pop();
+      text = cs.join('') + '…';
+    }
+  }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = rgb(col || P.a1, alpha);
   ctx.shadowColor = rgb(col || P.a1, alpha * .6); ctx.shadowBlur = size * .5;
-  ctx.fillText(text, CX + CAM.shx * .4, cy + CAM.shy * .4);
+  ctx.fillText(text, cx + CAM.shx * .4, cy + CAM.shy * .4);
   ctx.restore();
 }
 
@@ -977,8 +1091,12 @@ function buildGrain() {
   g.putImageData(im, 0, 0);
   grainPat = ctx.createPattern(c, 'repeat');
 }
-function post() {
-  // bloom: downscale twice (bilinear filtering IS the blur) and multiply the
+/* Bloom runs BEFORE the lyrics are drawn. Squaring the frame and adding it
+   back is what turned a block of white subtitle glyphs into one solid bar:
+   dense CJK strokes plus their own halo saturate, and the bloom fills the
+   gaps between the strokes. The scene still blooms; the text stays crisp. */
+function bloom() {
+  // downscale twice (bilinear filtering IS the blur) and multiply the
   // small buffer by itself so only highlights survive
   if (QUAL > 0) {
     actx.globalCompositeOperation = 'source-over';
@@ -994,6 +1112,8 @@ function post() {
     ctx.drawImage(bB, 0, 0, W, H);
     ctx.restore();
   }
+}
+function post() {
   if (F.flash > .02) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = rgb(P.a2, F.flash * .045);
@@ -1242,13 +1362,22 @@ function frame(now) {
   drawBalls(t); PROF('balls');
   drawParts(dt); PROF('parts');
 
+  bloom(); PROF('bloom');
+
   /* ---- lyrics ---- */
+  lyricArea();
   drawIntro(lt);
-  const yMain = CY + MIN * .1;
+  let yMain = CY + MIN * .1;
   if (curIdx >= 0) {
     const cur = LY.lines[curIdx], prev = LY.lines[curIdx - 1];
     const outAt = cur.t + cur.d;
-    if (prev && lt < prev.t + prev.d + .75 && fitLine(cur).rows < 3) {
+    // a tall wrapped block must not run under the waveform / transport,
+    // which is where a landscape phone puts it otherwise
+    const f0 = fitLine(cur);
+    const half = ((f0.rows - 1) * 1.3 + 1) * f0.size / 2 + f0.size * .5;
+    const hi = H * .74 - half, lo = H * .34;
+    yMain = hi < lo ? H * .52 : clamp(yMain, lo, hi);
+    if (prev && lt < prev.t + prev.d + .75 && f0.rows < 3) {
       drawLine(prev, lt, yMain - MIN * .17, {
         alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
       });
@@ -1256,8 +1385,8 @@ function frame(now) {
     if (lt < outAt + .55) drawLine(cur, lt, yMain, { outAt: outAt });
     const nx = LY.lines[curIdx + 1];
     if (nx && nx.t - lt < 1.1 && lt > outAt - .2) {
-      caption(nx.text, yMain + MIN * .11, MIN * .026,
-              clamp(1 - (nx.t - lt) / 1.1, 0, 1) * .22, P.ink);
+      caption(nx.text, Math.min(yMain + MIN * .11, H * .78), MIN * .026,
+              clamp(1 - (nx.t - lt) / 1.1, 0, 1) * .22, P.ink, LX, LW);
     }
   }
   if (act === 'outro') drawOutro(lt);
