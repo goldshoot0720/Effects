@@ -717,6 +717,13 @@ function glyph(ch, x, y, size, o) {
     ctx.fillStyle = `rgba(40,200,255,${o.alpha * .65})`; ctx.fillText(ch, s, 0);
     ctx.globalCompositeOperation = 'source-over';
   }
+  // dark contour under the face: keeps type readable over bright scene light
+  if (o.edge !== 0) {
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1, size * .1);
+    ctx.strokeStyle = `rgba(0,0,0,${o.alpha * (o.edge === undefined ? .6 : o.edge)})`;
+    ctx.strokeText(ch, 0, 0);
+  }
   const g = ctx.createLinearGradient(0, -size * .6, 0, size * .6);
   g.addColorStop(0, `rgba(255,255,255,${o.alpha})`);
   g.addColorStop(.52, rgb(o.col, o.alpha));
@@ -752,7 +759,9 @@ function fitLine(line) {
   const maxW = (LW || W) * (chorus ? .86 : .82);
   const cap = chorus ? MIN * .088 : MIN * .072;
   let rows = 1;
-  let size = Math.min(cap, maxW / (layout(line, 100, 1).total / 100));
+  const probe = layout(line, 100, 1).total;
+  if (!(probe > 0)) return { size: MIN * .05, rows: 1, L: layout(line, MIN * .05, 1) };
+  let size = Math.min(cap, maxW / (probe / 100));
   while (rows < 6 && size < MIN * .062) {
     const next = rows + 1;
     const s2 = Math.min(cap, maxW / (layout(line, 100, next).total / 100));
@@ -837,6 +846,24 @@ function drawLine(line, t, yBase, opts) {
   if (L.chars.length > 22 || L.rows >= 3) {
     drawSubtitle(line, t, yBase, L, size, ga, outP, age);
     return;
+  }
+
+  // soft scrim so the type stays legible over bright scene elements
+  {
+    const sa = ga * (1 - outP) * clamp(age / .5, 0, 1) * .55;
+    if (sa > .01) {
+      const r = Math.max(L.total * .72, size * 4);
+      const sg = ctx.createRadialGradient(CX, yBase, 0, CX, yBase, r);
+      sg.addColorStop(0, `rgba(3,4,10,${sa})`);
+      sg.addColorStop(.6, `rgba(3,4,10,${sa * .5})`);
+      sg.addColorStop(1, 'rgba(3,4,10,0)');
+      ctx.save();
+      ctx.translate(CX, yBase); ctx.scale(1, Math.max(.28, size * 2.2 / r));
+      ctx.translate(-CX, -yBase);
+      ctx.fillStyle = sg;
+      ctx.fillRect(CX - r, yBase - r, r * 2, r * 2);
+      ctx.restore();
+    }
   }
 
   for (let i = 0; i < L.chars.length; i++) {
