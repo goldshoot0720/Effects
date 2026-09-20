@@ -1,0 +1,12 @@
+# build output
+/artifacts/
+[Bb]in/
+[Oo]bj/
+
+# locally downloaded Android SDK (API 34) used by the release build
+/.android-sdk/
+
+# misc
+*.user
+.DS_Store
+Thumbs.db

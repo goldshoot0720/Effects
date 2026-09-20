@@ -1,0 +1,7 @@
+﻿<Solution>
+  <Project Path="EffectsApp.Android/EffectsApp.Android.csproj">
+    <Deploy />
+  </Project>
+  <Project Path="EffectsApp.Desktop/EffectsApp.Desktop.csproj" />
+  <Project Path="EffectsApp/EffectsApp.csproj" />
+</Solution>

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ApplicationId>com.goldshoot.effects</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AndroidResource Include="Icon.png">
+      <Link>Resources\drawable\Icon.png</Link>
+    </AndroidResource>
+  </ItemGroup>
+
+  <!-- The same offline web experience is stored in the APK's Android assets. -->
+  <ItemGroup>
+    <AndroidAsset Include="..\..\..\index.html" Link="Assets\Web\index.html" />
+    <AndroidAsset Include="..\..\..\js\engine.js" Link="Assets\Web\js\engine.js" />
+    <AndroidAsset Include="..\..\..\data\songs.js" Link="Assets\Web\data\songs.js" />
+    <AndroidAsset Include="..\..\..\data\song\*.js" Link="Assets\Web\data\song\%(Filename)%(Extension)" />
+    <AndroidAsset Include="..\..\..\audio\*.mp3" Link="Assets\Web\audio\%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

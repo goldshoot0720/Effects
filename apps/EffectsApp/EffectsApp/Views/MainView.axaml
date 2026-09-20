@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:web="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.WebView"
+             x:Class="EffectsApp.Views.MainView">
+    <Grid Background="#04050C">
+        <web:NativeWebView x:Name="EffectsWebView"
+                           Background="#04050C" />
+    </Grid>
+</UserControl>

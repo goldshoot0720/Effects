@@ -1,0 +1,13 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:EffectsApp.Views"
+        x:Class="EffectsApp.Views.MainWindow"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Effects · 3D MV"
+        Width="1280"
+        Height="800"
+        MinWidth="720"
+        MinHeight="480"
+        Background="#04050C">
+    <views:MainView />
+</Window>

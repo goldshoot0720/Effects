@@ -10,6 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
+const VERSION = '1.0.0';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -131,6 +132,9 @@ const cvs = $('#stage'), ctx = cvs.getContext('2d', { alpha: false });
 const bA = document.createElement('canvas'), actx = bA.getContext('2d', { alpha: false });
 const bB = document.createElement('canvas'), bctx = bB.getContext('2d', { alpha: false });
 let W = 0, H = 0, CX = 0, CY = 0, DPR = 1, MIN = 800;
+// projection scale: keeps the 3D scene framed the same way on a phone
+// and on a desktop instead of being calibrated to one device size
+let VIEWK = 1;
 let QUAL = 2;
 const QNAME = ['低', '中', '高'];
 
@@ -139,6 +143,7 @@ function resize() {
   W = Math.floor(innerWidth * DPR); H = Math.floor(innerHeight * DPR);
   cvs.width = W; cvs.height = H;
   CX = W / 2; CY = H / 2; MIN = Math.min(W, H);
+  VIEWK = Math.min(W / 1250, H / 700);   // 'contain' the 3D scene in any aspect
   bA.width = Math.max(256, Math.floor(W * .5)); bA.height = Math.max(256, Math.floor(H * .5));
   const bs = QUAL === 2 ? .25 : .18;
   bB.width = Math.max(256, Math.floor(W * bs)); bB.height = Math.max(256, Math.floor(H * bs));
@@ -174,7 +179,7 @@ function project(x, y, z) {
   const cp = Math.cos(CAM.pitch), sp = Math.sin(CAM.pitch);
   let Y = dy * cp - Z * sp; Z = dy * sp + Z * cp;
   if (Z <= 25) return null;
-  const k = (CAM.fov * DPR) / Z;
+  const k = (CAM.fov * VIEWK) / Z;
   return { x: CX + X * k + CAM.shx, y: CY + Y * k + CAM.shy, k: k, z: Z };
 }
 
@@ -614,19 +619,31 @@ function keyMask(text) {
 }
 const PRESETS = ['zoom', 'drop', 'slide', 'flip', 'burst', 'spin', 'wave', 'type'];
 const layoutCache = new Map();
-function layout(line, size) {
-  const key = line.text + '|' + size;
+function layout(line, size, rowCount) {
+  rowCount = rowCount || 1;
+  const key = line.text + '|' + size + '|' + rowCount;
   let L = layoutCache.get(key);
   if (L) return L;
   font(size, 900);
-  const chars = [...line.text];
-  const ws = chars.map(c => ctx.measureText(c).width);
+  const all = [...line.text];
   const gap = size * .02;
-  const total = ws.reduce((a, b) => a + b, 0) + gap * (chars.length - 1);
-  let x = -total / 2;
-  const pos = ws.map(w => { const c = x + w / 2; x += w + gap; return c; });
+  const per = Math.ceil(all.length / rowCount);
+  const chars = [], pos = [], row = [];
+  let total = 0;
+  for (let r = 0; r < rowCount; r++) {
+    const part = all.slice(r * per, (r + 1) * per);
+    if (!part.length) continue;
+    const ws = part.map(c => ctx.measureText(c).width);
+    const w = ws.reduce((a, b) => a + b, 0) + gap * (part.length - 1);
+    total = Math.max(total, w);
+    let x = -w / 2;
+    for (let i = 0; i < part.length; i++) {
+      chars.push(part[i]); pos.push(x + ws[i] / 2); row.push(r);
+      x += ws[i] + gap;
+    }
+  }
   if (layoutCache.size > 400) layoutCache.clear();
-  L = { chars: chars, pos: pos, total: total, mask: keyMask(line.text) };
+  L = { chars: chars, pos: pos, row: row, rows: rowCount, total: total, mask: keyMask(line.text) };
   layoutCache.set(key, L);
   return L;
 }
@@ -688,12 +705,27 @@ function glyph(ch, x, y, size, o) {
   ctx.restore();
 }
 
+/* Picks a readable size for a lyric line, wrapping it onto extra rows
+   rather than shrinking it to nothing on a narrow (phone) screen. */
+function fitLine(line) {
+  const chorus = line.kind === 'chorus';
+  const maxW = W * (chorus ? .86 : .82);
+  const cap = chorus ? MIN * .088 : MIN * .072;
+  let rows = 1;
+  let size = Math.min(cap, maxW / (layout(line, 100, 1).total / 100));
+  while (rows < 6 && size < MIN * .062) {
+    const next = rows + 1;
+    const s2 = Math.min(cap, maxW / (layout(line, 100, next).total / 100));
+    if (s2 <= size) break;
+    rows = next; size = s2;
+  }
+  return { size: size, rows: rows, L: layout(line, size, rows) };
+}
+
 function drawLine(line, t, yBase, opts) {
   const chorus = line.kind === 'chorus';
-  const probe = layout(line, 100);
-  const size = Math.min(chorus ? MIN * .088 : MIN * .072,
-                        W * (chorus ? .86 : .82) / (probe.total / 100));
-  const L = layout(line, size);
+  const fitL = fitLine(line);
+  const size = fitL.size, L = fitL.L;
 
   const age = t - line.t;
   const IN = .95, OUT = .5;
@@ -716,7 +748,8 @@ function drawLine(line, t, yBase, opts) {
       col: P.ink, col2: P.a2, dark: [20, 6, 14], glow: .25, trail: 0, tx: 0, ty: 0,
       split: 0, stroke: 0
     };
-    let x = L.pos[i], y = 0;
+    let x = L.pos[i];
+    let y = (L.row[i] - (L.rows - 1) / 2) * size * 1.18;
 
     switch (preset) {
       case 'zoom':
@@ -771,56 +804,102 @@ function drawLine(line, t, yBase, opts) {
     const g = ctx.createLinearGradient(CX - w, 0, CX + w, 0);
     g.addColorStop(0, rgb(P.a2, 0)); g.addColorStop(.5, rgb(P.a2, .55 * ga)); g.addColorStop(1, rgb(P.a2, 0));
     ctx.fillStyle = g;
-    ctx.fillRect(CX - w, yBase + size * .78, w * 2, Math.max(1, S(2)));
+    ctx.fillRect(CX - w, yBase + (L.rows - 1) / 2 * size * 1.18 + size * .78,
+                 w * 2, Math.max(1, S(2)));
     ctx.restore();
   }
 }
 
 /* ------------------------- title / credit cards -------------------- */
+/* Fits a long title into the viewport: shrink first, then wrap onto up to
+   `maxLines` balanced lines. Long Chinese titles otherwise run off screen,
+   especially on a phone in portrait. */
+function fitText(text, size, maxW, maxLines) {
+  maxLines = maxLines || 1;
+  font(size, 900);
+  const one = ctx.measureText(text).width;
+  if (one <= maxW) return { lines: [text], size: size };
+  const chars = [...text];
+  for (let n = 2; n <= maxLines && n <= chars.length; n++) {
+    const per = Math.ceil(chars.length / n);
+    const lines = [];
+    for (let i = 0; i < chars.length; i += per) lines.push(chars.slice(i, i + per).join(''));
+    let widest = 0;
+    for (const l of lines) widest = Math.max(widest, ctx.measureText(l).width);
+    if (widest <= maxW) return { lines: lines, size: size };
+    if (maxW / widest >= .72) return { lines: lines, size: size * maxW / widest };
+  }
+  if (maxLines > 1) {                       // last resort: max lines, shrunk
+    const per = Math.ceil(chars.length / maxLines);
+    const lines = [];
+    for (let i = 0; i < chars.length; i += per) lines.push(chars.slice(i, i + per).join(''));
+    let widest = 0;
+    for (const l of lines) widest = Math.max(widest, ctx.measureText(l).width);
+    return { lines: lines, size: size * maxW / widest };
+  }
+  return { lines: [text], size: size * maxW / one };
+}
+
 function drawCard(text, cy, size, t, t0, t1, style) {
   if (!text || t < t0 - .05 || t > t1 + .05) return;
   const IN = style === 'logo' ? 1.1 : .8, OUT = .9;
-  const chars = [...text];
-  font(size, 900);
-  const ws = chars.map(c => ctx.measureText(c).width);
-  const gap = style === 'num' ? size * .3 : size * .02;
-  const total = ws.reduce((s, w) => s + w, 0) + gap * (chars.length - 1);
+  const fit = fitText(text, size, W * .88, style === 'num' ? 1 : 3);
+  size = fit.size;
   const outP = clamp((t - (t1 - OUT)) / OUT, 0, 1);
-  let x = CX - total / 2;
-  for (let i = 0; i < chars.length; i++) {
-    const p = clamp((t - t0 - i * (style === 'logo' ? .13 : .07)) / IN, 0, 1);
-    const e = easeOut(p), oe = easeOut(outP);
-    if (p > 0) glyph(chars[i], x + ws[i] / 2 + CAM.shx * .5, cy + CAM.shy * .5, size, {
-      scale: lerp(style === 'logo' ? 1.45 : 1.2, 1, e) * (1 + oe * .5) * (1 + F.punch * .05),
-      alpha: p * (1 - outP),
-      z: (1 - e) * (style === 'logo' ? 900 : 500) - oe * 420,
-      rz: 0, rx: (1 - e) * (style === 'logo' ? .8 : .4), ry: 0,
-      depth: style === 'logo' ? 14 : 9,
-      col: P.ink, col2: P.a2, dark: [70, 18, 8],
-      glow: .45 + (1 - p) * .8 + F.punch * .4,
-      trail: 1 - p, tx: 0, ty: -size * .3 * (1 - p),
-      split: F.flash * .45, stroke: style === 'num' ? .4 : .18
-    });
-    x += ws[i] + gap;
+  const lh = size * 1.12;
+  const y0 = cy - (fit.lines.length - 1) * lh / 2;
+  let ci = 0, widest = 0;
+  font(size, 900);
+
+  for (let li = 0; li < fit.lines.length; li++) {
+    const chars = [...fit.lines[li]];
+    const ws = chars.map(c => ctx.measureText(c).width);
+    const gap = style === 'num' ? size * .3 : size * .02;
+    const total = ws.reduce((s2, w) => s2 + w, 0) + gap * (chars.length - 1);
+    widest = Math.max(widest, total);
+    let x = CX - total / 2;
+    const ly = y0 + li * lh;
+    for (let i = 0; i < chars.length; i++, ci++) {
+      const p = clamp((t - t0 - ci * (style === 'logo' ? .13 : .07)) / IN, 0, 1);
+      const e = easeOut(p), oe = easeOut(outP);
+      if (p > 0) glyph(chars[i], x + ws[i] / 2 + CAM.shx * .5, ly + CAM.shy * .5, size, {
+        scale: lerp(style === 'logo' ? 1.45 : 1.2, 1, e) * (1 + oe * .5) * (1 + F.punch * .05),
+        alpha: p * (1 - outP),
+        z: (1 - e) * (style === 'logo' ? 900 : 500) - oe * 420,
+        rz: 0, rx: (1 - e) * (style === 'logo' ? .8 : .4), ry: 0,
+        depth: style === 'logo' ? 14 : 9,
+        col: P.ink, col2: P.a2, dark: [70, 18, 8],
+        glow: .45 + (1 - p) * .8 + F.punch * .4,
+        trail: 1 - p, tx: 0, ty: -size * .3 * (1 - p),
+        split: F.flash * .45, stroke: style === 'num' ? .4 : .18
+      });
+      x += ws[i] + gap;
+    }
   }
+
   const a = clamp((t - t0) / IN, 0, 1) * (1 - outP);
   const sw = ((t - t0 - .4) % 3.4) / 1.2;
   if (sw > 0 && sw < 1 && a > .1) {         // light sweep
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const gx = lerp(CX - total * .75, CX + total * .75, sw);
+    const gx = lerp(CX - widest * .75, CX + widest * .75, sw);
     const g = ctx.createLinearGradient(gx - MIN * .1, 0, gx + MIN * .1, 0);
     g.addColorStop(0, 'rgba(255,255,255,0)');
     g.addColorStop(.5, `rgba(255,255,255,${.14 * a})`);
     g.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(CX - total * .85, cy - size * .8, total * 1.7, size * 1.6);
+    ctx.fillRect(CX - widest * .85, y0 - size * .8, widest * 1.7,
+                 (fit.lines.length - 1) * lh + size * 1.6);
     ctx.restore();
   }
+  return { size: size, bottom: y0 + (fit.lines.length - 1) * lh + size * .6 };
 }
+
 function caption(text, cy, size, alpha, col) {
   if (alpha <= .01 || !text) return;
   ctx.save();
   font(size, 400);
+  const w = ctx.measureText(text).width;
+  if (w > W * .9) { size = size * W * .9 / w; font(size, 400); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = rgb(col || P.a1, alpha);
   ctx.shadowColor = rgb(col || P.a1, alpha * .6); ctx.shadowBlur = size * .5;
@@ -840,11 +919,10 @@ function buildIntro() {
   } else if (end >= 7) {
     cards.push({ kind: 'logo', text: LY.title, t0: .8, t1: end * .62, y: -.035, size: .115 });
     cards.push({ kind: 'line', text: LY.tagline, t0: end * .64, t1: end, y: 0, size: .055 });
-  } else if (end >= 3) {
-    cards.push({ kind: 'logo', text: LY.title, t0: .35, t1: end, y: -.02, size: .105 });
   } else {
-    // no room at all: run the logo as an upper third over the first lines
-    cards.push({ kind: 'logo', text: LY.title, t0: .2, t1: 6.5, y: -.25, size: .062 });
+    // little or no room: run the logo as an upper third so it never fights
+    // with the first sung lines down at the lyric line
+    cards.push({ kind: 'logo', text: LY.title, t0: .25, t1: Math.max(end, 6.5), y: -.25, size: .066 });
   }
   INTRO = { end: Math.max(end, 4), cards: cards };
 }
@@ -852,34 +930,39 @@ function drawIntro(t) {
   const cards = INTRO.cards;
   if (!cards.length || t > cards[cards.length - 1].t1 + .2) return;
   for (const c of cards) {
-    const size = MIN * c.size * (c.text && c.text.length > 10 ? .68 : 1);
-    drawCard(c.text, CY + MIN * c.y, size, t, c.t0, c.t1, c.kind);
-    if (c.kind === 'logo') {
+    const r = drawCard(c.text, CY + MIN * c.y, MIN * c.size, t, c.t0, c.t1, c.kind);
+    if (c.kind === 'logo' && r) {
       const w = c.t1 - c.t0;
       const s1 = clamp((t - c.t0 - w * .28) / .9, 0, 1) * clamp((c.t1 - .7 - t) / .8, 0, 1);
-      caption(LY.cast, CY + MIN * (c.y + .1), MIN * .022, s1 * .55, P.ink);
+      caption(LY.cast, r.bottom + MIN * .035, MIN * .022, s1 * .55, P.ink);
     }
   }
 }
 function drawOutro(t) {
   const a = clamp((t - LAST_END - .6) / 1.4, 0, 1) * clamp((DUR - t) / 1.2, 0, 1);
   if (a <= .01) return;
-  const size = MIN * .09 * (LY.title.length > 10 ? .68 : 1);
-  const title = [...LY.title];
+  const fit = fitText(LY.title, MIN * .09, W * .88, 3);
+  const size = fit.size, lh = size * 1.12;
   font(size, 900);
-  const ws = title.map(c => ctx.measureText(c).width);
-  const total = ws.reduce((s, w) => s + w, 0);
-  let x = CX - total / 2;
-  for (let i = 0; i < title.length; i++) {
-    glyph(title[i], x + ws[i] / 2, CY - MIN * .02, size, {
-      scale: 1, alpha: a, z: 0, rz: 0, rx: 0, ry: Math.sin(t * .6 + i * .3) * .12,
-      depth: 12, col: P.ink, col2: P.a2, dark: [70, 18, 8],
-      glow: .5, trail: 0, tx: 0, ty: 0, split: 0, stroke: .2
-    });
-    x += ws[i];
+  const y0 = CY - MIN * .02 - (fit.lines.length - 1) * lh / 2;
+  let ci = 0;
+  for (let li = 0; li < fit.lines.length; li++) {
+    const chars = [...fit.lines[li]];
+    const ws = chars.map(c => ctx.measureText(c).width);
+    const total = ws.reduce((s2, w) => s2 + w, 0);
+    let x = CX - total / 2;
+    for (let i = 0; i < chars.length; i++, ci++) {
+      glyph(chars[i], x + ws[i] / 2, y0 + li * lh, size, {
+        scale: 1, alpha: a, z: 0, rz: 0, rx: 0, ry: Math.sin(t * .6 + ci * .3) * .12,
+        depth: 12, col: P.ink, col2: P.a2, dark: [70, 18, 8],
+        glow: .5, trail: 0, tx: 0, ty: 0, split: 0, stroke: .2
+      });
+      x += ws[i];
+    }
   }
-  caption(LY.cast, CY + MIN * .075, MIN * .022, a * .8);
-  caption(LY.tagline, CY + MIN * .12, MIN * .018, a * .45, P.ink);
+  const bottom = y0 + (fit.lines.length - 1) * lh + size * .6;
+  caption(LY.cast, bottom + MIN * .04, MIN * .022, a * .8);
+  caption(LY.tagline, bottom + MIN * .085, MIN * .018, a * .45, P.ink);
 }
 
 /* --------------------------- post processing ----------------------- */
@@ -967,7 +1050,7 @@ function ensureData(id, cb) {
   const bag = window.MV_SONG_DATA;
   if (bag && bag[id]) return cb(bag[id]);
   const s = document.createElement('script');
-  s.src = 'data/song/' + id + '.js';
+  s.src = 'data/song/' + id + '.js?v=' + VERSION;
   s.onload = () => {
     const d = window.MV_SONG_DATA && window.MV_SONG_DATA[id];
     if (d) cb(d); else toast('資料格式有誤：' + id);
@@ -1165,9 +1248,9 @@ function frame(now) {
   if (curIdx >= 0) {
     const cur = LY.lines[curIdx], prev = LY.lines[curIdx - 1];
     const outAt = cur.t + cur.d;
-    if (prev && lt < prev.t + prev.d + .75) {
-      drawLine(prev, lt, yMain - MIN * .12, {
-        alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .35, outAt: prev.t + prev.d
+    if (prev && lt < prev.t + prev.d + .75 && fitLine(cur).rows < 3) {
+      drawLine(prev, lt, yMain - MIN * .17, {
+        alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
       });
     }
     if (lt < outAt + .55) drawLine(cur, lt, yMain, { outAt: outAt });
@@ -1269,12 +1352,17 @@ function drawWave() {
     g.fillRect(i, h / 2 - v / 2, 1, v);
   }
   const M = $('#marks'); M.innerHTML = '';
-  SEC.forEach(s => {
+  let lastLab = -99;
+  SEC.forEach(sec => {
+    const pct = sec.start / DUR * 100;
     const bar = document.createElement('i');
-    bar.style.left = (s.start / DUR * 100) + '%'; M.appendChild(bar);
+    bar.style.left = pct + '%'; M.appendChild(bar);
+    // only label a section when there is room, otherwise they overlap
+    if (pct - lastLab < 4200 / w) return;
+    lastLab = pct;
     const lab = document.createElement('b');
-    lab.style.left = (s.start / DUR * 100) + '%';
-    lab.textContent = ACT_LABEL[s.kind]; M.appendChild(lab);
+    lab.style.left = pct + '%';
+    lab.textContent = ACT_LABEL[sec.kind]; M.appendChild(lab);
   });
 }
 
@@ -1459,7 +1547,9 @@ function wake() {
     if (playing && !editing && $('#start').classList.contains('gone')) document.body.classList.add('idle');
   }, 2600);
 }
-addEventListener('mousemove', wake); addEventListener('keydown', wake); wake();
+addEventListener('mousemove', wake); addEventListener('keydown', wake);
+addEventListener('pointerdown', wake); addEventListener('touchstart', wake, { passive: true });
+wake();
 
 /* ------------------------------ boot ------------------------------- */
 window.__mv = {
