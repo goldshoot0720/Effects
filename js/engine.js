@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '1.0.5';
+const VERSION = '1.1.0';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -32,6 +32,17 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { } }
 };
+// viewer preferences that survive a reload (quality, volume, loop, panel, last song)
+const PREF = {
+  num(k, d) { const v = parseFloat(store.get('mv.pref.' + k)); return isFinite(v) ? v : d; },
+  str(k, d) { const v = store.get('mv.pref.' + k); return v === null ? d : v; },
+  set(k, v) { store.set('mv.pref.' + k, String(v)); }
+};
+// honour the OS "reduce motion" switch: calmer camera, no strobing flashes
+const RM = (() => {
+  try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+})();
+const MOTION = RM ? .25 : 1;
 
 /* ------------------------------ themes ----------------------------- */
 /* Every song picks a theme: two accent colours, two background tints,
@@ -135,7 +146,7 @@ let W = 0, H = 0, CX = 0, CY = 0, DPR = 1, MIN = 800;
 // projection scale: keeps the 3D scene framed the same way on a phone
 // and on a desktop instead of being calibrated to one device size
 let VIEWK = 1;
-let QUAL = 2;
+let QUAL = clamp(Math.round(PREF.num('qual', 2)), 0, 2);
 const QNAME = ['低', '中', '高'];
 
 function resize() {
@@ -168,7 +179,7 @@ function camUpdate(t, dt) {
   CAM.pitch = lerp(CAM.pitch, CAM.tpitch, k);
   CAM.roll = lerp(CAM.roll, CAM.troll, k); CAM.fov = lerp(CAM.fov, CAM.tfov, k);
   CAM.whip *= Math.pow(.02, dt);
-  const amp = S(10) * (F.punch * 1.4 + F.bass * .5);
+  const amp = S(10) * (F.punch * 1.4 + F.bass * .5) * MOTION;
   CAM.shx = Math.sin(t * 61.3) * amp;
   CAM.shy = Math.cos(t * 47.7) * amp;
 }
@@ -941,7 +952,7 @@ function drawLine(line, t, yBase, opts) {
     o.scale *= 1 + F.punch * (chorus ? .13 : .07) * (1 - settled * .35) + Math.sin(t * 1.6 + i) * .008;
     y += Math.sin(t * 1.25 + i * .5) * size * .022 * settled;
     o.glow += F.punch * .5;
-    o.split = F.flash * (chorus ? .55 : .25);
+    o.split = F.flash * (chorus ? .55 : .25) * MOTION;
 
     if (L.mask[i]) {                      // keyword accent
       o.col = P.a2; o.col2 = P.a1; o.glow += .55; o.stroke = .35;
@@ -1175,7 +1186,7 @@ function bloom() {
 function post() {
   if (F.flash > .02) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = rgb(P.a2, F.flash * .045);
+    ctx.fillStyle = rgb(P.a2, F.flash * .045 * MOTION);
     ctx.fillRect(0, 0, W, H); ctx.restore();
   }
   const g = ctx.createRadialGradient(CX, CY, MIN * .25, CX, CY, MIN * .82);
@@ -1238,7 +1249,7 @@ function ensureData(id, cb) {
   document.head.appendChild(s);
 }
 
-function applySong(d, autoplay) {
+function applySong(d, autoplay, startAt) {
   SONG = d;
   AA = d.analysis;
   TH = THEMES[d.theme] || THEMES.wed;
@@ -1265,7 +1276,16 @@ function applySong(d, autoplay) {
 
   audio.src = d.audio;
   audio.load();
+  setLoading(!!autoplay);
   clock = 0; resetOnsets(0);
+  if (startAt > 0) {
+    // currentTime can only be set once metadata is in
+    const t0 = Math.min(startAt, DUR - 1);
+    const go = () => { audio.currentTime = t0; clock = t0; resetOnsets(t0); lastIdx = -2; };
+    if (audio.readyState >= 1) go(); else audio.addEventListener('loadedmetadata', go, { once: true });
+  }
+  PREF.set('song', d.id);
+  updateMediaSession();
   parts.length = 0; waves.length = 0; pillars.length = 0;
   layoutCache.clear();
   lastIdx = -2; lastSec = -2; editIdx = 0;
@@ -1276,14 +1296,23 @@ function applySong(d, autoplay) {
   document.title = d.title + ' · 3D MV';
   buildPanel(); drawWave(); paintCards();
   if (editing) paintEditor();
-  if (autoplay) play(); else { playing = false; $('#play').textContent = '▶'; }
+  if (autoplay) play(); else { playing = false; setPlayIcon(); }
+  $('#scrub').setAttribute('aria-valuemax', String(Math.round(DUR)));
 }
 
-function loadSong(idx, autoplay) {
+let loadTok = 0;
+function loadSong(idx, autoplay, startAt) {
   if (!CAT.length) return;
   songIdx = (idx % CAT.length + CAT.length) % CAT.length;
-  const entry = CAT[songIdx];
-  ensureData(entry.id, d => { applySong(d, autoplay); toast(entry.title); });
+  const entry = CAT[songIdx], tok = ++loadTok;
+  paintCards();
+  const bag = window.MV_SONG_DATA;
+  if (!(bag && bag[entry.id])) { setLoading(true); toast('載入中 · ' + entry.title); }
+  ensureData(entry.id, d => {
+    if (tok !== loadTok) return;               // a newer pick won the race
+    applySong(d, autoplay, startAt);
+    toast((songIdx + 1) + ' / ' + CAT.length + ' · ' + entry.title);
+  });
 }
 
 /* ================================ LOOP ============================= */
@@ -1315,6 +1344,9 @@ function frame(now) {
   if (dt > .1) dt = .1;
   if (dt <= 0) dt = .016;
   if (!SONG) return;
+  // a WebView / background tab can report a 0×0 viewport before its first
+  // layout; drawing (the bloom's drawImage) would throw every frame
+  if (W < 2 || H < 2) { if (innerWidth > 1 && innerHeight > 1) resize(); return; }
   if (profOn) { profMark = performance.now(); profN++; }
 
   syncClock(dt);
@@ -1373,7 +1405,7 @@ function frame(now) {
   for (let i = 0; i < SEC.length; i++) if (lt >= SEC[i].start - .4) secIdx = i;
   if (secIdx !== lastSec) {
     if (lastSec !== -2 && secIdx >= 0) {
-      CAM.whip = (Math.random() < .5 ? -1 : 1) * .34;
+      CAM.whip = (Math.random() < .5 ? -1 : 1) * .34 * MOTION;
       waves.push({ age: 0, dur: 1.5, max: 2200, z: 1500, c: 1 });
       if (SEC[secIdx].kind === 'chorus') emit(QUAL === 2 ? 40 : 20);
     }
@@ -1486,20 +1518,56 @@ function frame(now) {
   fpsAcc += dt; fpsN++;
   if (fpsAcc > .5) {
     fpsShow = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0;
-    $('#fps').textContent = fpsShow + ' FPS';
+    elFps.textContent = fpsShow + ' FPS';
+    autoQuality(fpsShow);
   }
-  $('#actTag').textContent = ACT_LABEL[act] || '';
+  const actText = ACT_LABEL[act] || '';
+  if (elAct.textContent !== actText) elAct.textContent = actText;
   updateTransport(t, curIdx);
+}
+
+/* If the scene cannot hold ~28 fps for a few seconds, step the quality
+   down once per level instead of leaving a stuttering MV. Only while the
+   viewer has not picked a quality by hand this session. */
+let lowFps = 0, qualByHand = false;
+function autoQuality(fps) {
+  if (!playing || qualByHand || QUAL === 0 || document.hidden) { lowFps = 0; return; }
+  lowFps = fps < 28 ? lowFps + 1 : Math.max(0, lowFps - 1);
+  if (lowFps >= 8) {
+    lowFps = 0;
+    setQuality(QUAL - 1, false);
+    toast('畫面較卡，已自動切到「' + QNAME[QUAL] + '」畫質（按 Q 可調回）');
+  }
 }
 
 /* ============================ UI / TRANSPORT ======================= */
 const elHead = $('#head'), elTime = $('#time'), elNow = $('#now'), elPlay = $('#play');
+const elFps = $('#fps'), elAct = $('#actTag'), elPlayed = $('#played'), elBuf = $('#buf');
+const elScrub = $('#scrub'), elStart = $('#start'), elPanel = $('#panel'), elHelp = $('#help');
+const SKIP = 10, SKIP_BIG = 30;
+
 elTime.style.cursor = 'pointer';
 elTime.title = '點一下輸入時間跳轉';
 elTime.onclick = () => { const g = $('#goto'); g.value = fmt(clock); g.focus(); };
+
+let lastTimeText = '', lastPct = -1, lastAria = -1;
 function updateTransport(t, idx) {
-  elHead.style.left = (clamp(t / DUR, 0, 1) * 100) + '%';
-  elTime.textContent = `${fmt(t)} / ${fmt(DUR)}`;
+  const pct = clamp(t / DUR, 0, 1) * 100;
+  if (Math.abs(pct - lastPct) > .02) {
+    lastPct = pct;
+    elHead.style.left = pct + '%';
+    elPlayed.style.width = pct + '%';
+  }
+  const tt = `${fmt(t)} / ${fmt(DUR)}`;
+  if (tt !== lastTimeText) {
+    lastTimeText = tt; elTime.textContent = tt;
+    const sec = Math.floor(t);
+    if (sec !== lastAria) {
+      lastAria = sec;
+      elScrub.setAttribute('aria-valuenow', String(sec));
+      elScrub.setAttribute('aria-valuetext', tt);
+    }
+  }
   if (idx !== lastIdx) {
     lastIdx = idx;
     elNow.textContent = idx >= 0 ? LY.lines[idx].text : '';
@@ -1507,7 +1575,18 @@ function updateTransport(t, idx) {
     if (editing) paintEditor();
   }
 }
+function updateBuffered() {
+  try {
+    const b = audio.buffered;
+    let end = 0;
+    for (let i = 0; i < b.length; i++) if (b.start(i) <= audio.currentTime + 1) end = Math.max(end, b.end(i));
+    elBuf.style.width = clamp(end / DUR, 0, 1) * 100 + '%';
+  } catch (e) { }
+}
+audio.addEventListener('progress', updateBuffered);
+audio.addEventListener('timeupdate', updateBuffered);
 
+/* ----------------------------- lyric panel ------------------------- */
 const wrap = $('#scrollwrap');
 let rows = [];
 function buildPanel() {
@@ -1523,15 +1602,18 @@ function buildPanel() {
     }
     const d = document.createElement('div');
     d.className = 'l'; d.textContent = l.text;
-    d.onclick = () => seek(l.t + OFFSET);
+    d.title = '跳到 ' + fmt(l.t + OFFSET);
+    d.onclick = () => { seek(l.t + OFFSET); if (!playing) play(); };
     wrap.appendChild(d); rows.push(d);
   });
 }
 function paintPanel(idx) {
   rows.forEach((r, i) => { r.className = 'l' + (i === idx ? ' cur' : i < idx ? ' done' : ''); });
   if (idx >= 0 && rows[idx]) wrap.style.transform = `translateY(${-rows[idx].offsetTop + innerHeight * .34}px)`;
+  else wrap.style.transform = `translateY(${innerHeight * .34}px)`;
 }
 
+/* ------------------------------ waveform --------------------------- */
 function drawWave() {
   const c = $('#wave'), g = c.getContext('2d');
   const w = c.clientWidth || 800, h = c.clientHeight || 46, d = Math.min(devicePixelRatio || 1, 2);
@@ -1540,15 +1622,16 @@ function drawWave() {
   g.clearRect(0, 0, w, h);
   if (!RMSA) return;
   const n = Math.floor(w);
+  const c1 = rgb(TH.a1, .55), c2 = rgb(TH.a2, .5);
   for (let i = 0; i < n; i++) {
     const f0 = Math.floor(i / n * RMSA.length), f1 = Math.floor((i + 1) / n * RMSA.length);
     let mx = 0;
     for (let f = f0; f < f1; f++) mx = Math.max(mx, RMSA[f]);
-    const v = Math.pow(mx / 255, 1.25) * (h * .8);
+    const v = Math.max(1, Math.pow(mx / 255, 1.25) * (h * .8));
     const grd = g.createLinearGradient(0, h / 2 - v / 2, 0, h / 2 + v / 2);
-    grd.addColorStop(0, 'rgba(255,210,74,.55)');
+    grd.addColorStop(0, c1);
     grd.addColorStop(.5, 'rgba(255,255,255,.28)');
-    grd.addColorStop(1, 'rgba(255,59,107,.5)');
+    grd.addColorStop(1, c2);
     g.fillStyle = grd;
     g.fillRect(i, h / 2 - v / 2, 1, v);
   }
@@ -1567,29 +1650,124 @@ function drawWave() {
   });
 }
 
-function play() { audio.play().then(() => { playing = true; elPlay.textContent = '❚❚'; }).catch(() => { }); }
-function pause() { audio.pause(); playing = false; elPlay.textContent = '▶'; }
+/* ------------------------------ playback --------------------------- */
+function setPlayIcon() {
+  elPlay.textContent = playing ? '❚❚' : '▶';
+  elPlay.setAttribute('aria-label', playing ? '暫停' : '播放');
+  try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'; } catch (e) { }
+}
+function setLoading(on) { elPlay.classList.toggle('loading', !!on); }
+
+function play() {
+  const p = audio.play();
+  if (!p || !p.then) { playing = true; setPlayIcon(); return; }
+  p.then(() => { playing = true; setPlayIcon(); wake(); })
+   .catch(err => {
+     setLoading(false);
+     if (err && err.name === 'NotAllowedError') toast('瀏覽器擋下自動播放 · 點 ▶ 開始');
+     else if (err && err.name !== 'AbortError') toast('無法播放這首歌');
+   });
+}
+function pause() { audio.pause(); playing = false; setPlayIcon(); setLoading(false); wake(); }
 function toggle() { playing ? pause() : play(); }
 function seek(t) {
   t = clamp(t, 0, DUR - .05);
   audio.currentTime = t; clock = t;
   resetOnsets(t); parts.length = 0; waves.length = 0; pillars.length = 0; lastIdx = -2;
+  saveResume(true);
 }
-audio.addEventListener('ended', () => {
-  playing = false; elPlay.textContent = '▶';
-  loadSong(songIdx + 1, true);                  // auto-advance through the album
-});
-elPlay.onclick = toggle;
-$('#bPrev').onclick = () => loadSong(songIdx - 1, true);
-$('#bNext').onclick = () => loadSong(songIdx + 1, true);
-const SKIP = 10;
-$('#bBack10').onclick = () => { seek(clock - SKIP); toast('倒退 10 秒'); };
-$('#bFwd10').onclick = () => { seek(clock + SKIP); toast('快進 10 秒'); };
+function seekBy(d) {
+  seek(clock + d);
+  pulse(d < 0 ? '⏪' : '⏩', (d < 0 ? '−' : '+') + Math.abs(d) + ' 秒', d < 0 ? 'l' : 'r');
+}
 
+// keep the UI honest when something else pauses the audio (headphones
+// unplugged, a phone call, the OS media controls)
+audio.addEventListener('pause', () => { if (playing && !audio.ended) { playing = false; setPlayIcon(); } });
+audio.addEventListener('play', () => { if (!playing) { playing = true; setPlayIcon(); } });
+audio.addEventListener('waiting', () => setLoading(true));
+audio.addEventListener('stalled', () => { if (playing) setLoading(true); });
+audio.addEventListener('playing', () => setLoading(false));
+audio.addEventListener('canplay', () => { if (!playing) setLoading(false); });
+audio.addEventListener('seeked', () => { if (!playing) setLoading(false); });
+audio.addEventListener('error', () => {
+  setLoading(false);
+  if (audio.getAttribute('src')) toast('音檔載入失敗：' + (SONG ? SONG.audio : ''));
+});
+
+/* loop modes: whole album (default) → one song → stop at the end */
+const LOOPS = ['all', 'one', 'off'];
+const LOOP_ICON = { all: '🔁', one: '🔂', off: '➡' };
+const LOOP_NAME = { all: '全部循環', one: '單曲循環', off: '播完停止' };
+let loopMode = LOOPS.indexOf(PREF.str('loop', 'all')) >= 0 ? PREF.str('loop', 'all') : 'all';
+function paintLoop() {
+  const b = $('#bLoop');
+  b.textContent = LOOP_ICON[loopMode];
+  b.title = LOOP_NAME[loopMode] + '（R 切換）';
+  b.classList.toggle('on', loopMode !== 'off');
+}
+function cycleLoop() {
+  loopMode = LOOPS[(LOOPS.indexOf(loopMode) + 1) % LOOPS.length];
+  PREF.set('loop', loopMode); paintLoop(); toast(LOOP_NAME[loopMode]);
+}
+$('#bLoop').onclick = cycleLoop;
+
+audio.addEventListener('ended', () => {
+  playing = false; setPlayIcon();
+  saveResume(true, 0);
+  if (loopMode === 'one') { seek(0); play(); }
+  else if (loopMode === 'all') loadSong(songIdx + 1, true);    // auto-advance through the album
+  else if (songIdx < CAT.length - 1) loadSong(songIdx + 1, true);
+  else { toast('全部播完了 · 按 ▶ 從頭再來'); seek(0); }
+});
+
+elPlay.onclick = () => { if (!elStart.classList.contains('gone')) hideList(); toggle(); };
+$('#bPrev').onclick = prevSong;
+$('#bNext').onclick = () => loadSong(songIdx + 1, true);
+$('#bBack10').onclick = () => seekBy(-SKIP);
+$('#bFwd10').onclick = () => seekBy(SKIP);
+// "previous" restarts the song first, like every music player
+function prevSong() {
+  if (clock > 4) { seek(0); toast('從頭播放'); if (!playing) play(); }
+  else loadSong(songIdx - 1, true);
+}
+
+/* -------------------------------- volume --------------------------- */
+const volEl = $('#vol'), muteEl = $('#bMute');
+let volume = clamp(PREF.num('vol', 1), 0, 1), muted = PREF.str('muted', '0') === '1';
+function applyVolume(show) {
+  audio.volume = volume; audio.muted = muted;
+  volEl.value = String(volume);
+  volEl.style.setProperty('--v', (muted ? 0 : volume * 100) + '%');
+  const icon = muted || volume === 0 ? '🔇' : volume < .5 ? '🔉' : '🔊';
+  muteEl.textContent = icon;
+  muteEl.setAttribute('aria-label', muted ? '取消靜音' : '靜音');
+  muteEl.classList.toggle('on', muted);
+  PREF.set('vol', volume.toFixed(2)); PREF.set('muted', muted ? '1' : '0');
+  if (show) pulse(icon, muted ? '靜音' : Math.round(volume * 100) + '%');
+}
+function setVolume(v, show) { volume = clamp(v, 0, 1); if (volume > 0) muted = false; applyVolume(show); }
+function toggleMute() { muted = !muted; if (!muted && volume === 0) volume = .6; applyVolume(true); }
+volEl.addEventListener('input', () => setVolume(parseFloat(volEl.value), false));
+volEl.addEventListener('keydown', e => e.stopPropagation());
+muteEl.onclick = toggleMute;
+
+/* ------------------------- centre feedback bubble ------------------ */
+const pulseEl = $('#pulse');
+function pulse(icon, label, side) {
+  pulseEl.innerHTML = '';
+  pulseEl.appendChild(document.createTextNode(icon));
+  if (label) { const s = document.createElement('small'); s.textContent = label; pulseEl.appendChild(s); }
+  pulseEl.className = side || '';
+  void pulseEl.offsetWidth;                 // restart the animation
+  pulseEl.className = (side || '') + ' go';
+}
+
+/* ------------------------------ goto box --------------------------- */
 /* jump straight to a timestamp: "83", "1:23", "1:23.5" or "0:01:23" */
 const gotoEl = $('#goto');
 function parseTime(str) {
-  const raw = String(str).trim().replace(/[：]/g, ':');
+  const raw = String(str).trim().replace(/[：]/g, ':').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   if (!raw) return null;
   if (!/^[0-9:.]+$/.test(raw)) return null;
   const parts = raw.split(':');
@@ -1603,9 +1781,11 @@ function parseTime(str) {
 }
 function doGoto() {
   const sec = parseTime(gotoEl.value);
-  if (sec === null) { toast('時間格式：1:23 或 83'); return; }
+  if (sec === null) { toast('時間格式：1:23 或 83'); gotoEl.select(); return; }
+  if (sec > DUR) toast('這首只有 ' + fmt(DUR) + '，跳到結尾前');
+  else toast('跳到 ' + fmt(sec));
   seek(Math.min(sec, DUR - .05));
-  toast('跳到 ' + fmt(Math.min(sec, DUR)));
+  gotoEl.value = '';
   gotoEl.blur();
 }
 gotoEl.addEventListener('keydown', e => {
@@ -1615,30 +1795,96 @@ gotoEl.addEventListener('keydown', e => {
 });
 gotoEl.addEventListener('focus', () => { gotoEl.select(); wake(); });
 
-const scrub = $('#scrub'), hov = $('#hov');
-scrub.addEventListener('pointerdown', e => {
-  const r = scrub.getBoundingClientRect();
-  seek((e.clientX - r.left) / r.width * DUR);
-  const mv = ev => seek((ev.clientX - r.left) / r.width * DUR);
-  const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
-  addEventListener('pointermove', mv); addEventListener('pointerup', up);
+/* ------------------------------ scrubber --------------------------- */
+const hov = $('#hov'), tipT = $('#tipT'), tipL = $('#tipL'), tipEl = $('#tip');
+function scrubTime(clientX) {
+  const r = elScrub.getBoundingClientRect();
+  return clamp((clientX - r.left) / r.width, 0, 1) * DUR;
+}
+function showTip(clientX) {
+  if (!LY) return;
+  const r = elScrub.getBoundingClientRect();
+  const x = clamp(clientX - r.left, 0, r.width);
+  const t = x / r.width * DUR;
+  hov.style.left = x + 'px';
+  const i = lineAt(t - OFFSET);
+  tipT.textContent = fmt(t);
+  tipL.textContent = i >= 0 ? LY.lines[i].text : '';
+  // keep the bubble inside the bar so it never runs off a phone screen
+  const half = (tipEl.offsetWidth || 120) / 2;
+  tipEl.style.left = clamp(x, half, r.width - half) + 'px';
+  elScrub.classList.add('show');
+}
+let scrubbing = false;
+elScrub.addEventListener('pointerdown', e => {
+  if (e.button !== undefined && e.button !== 0) return;
+  scrubbing = true;
+  try { elScrub.setPointerCapture(e.pointerId); } catch (err) { }
+  seek(scrubTime(e.clientX)); showTip(e.clientX);
 });
-scrub.addEventListener('pointermove', e => {
-  const r = scrub.getBoundingClientRect();
-  hov.style.left = (e.clientX - r.left) + 'px';
+elScrub.addEventListener('pointermove', e => {
+  if (scrubbing) seek(scrubTime(e.clientX));
+  if (scrubbing || e.pointerType === 'mouse') showTip(e.clientX);
 });
+const endScrub = () => {
+  if (!scrubbing) return;
+  scrubbing = false;
+  setTimeout(() => { if (!scrubbing && !elScrub.matches(':hover')) elScrub.classList.remove('show'); }, 700);
+};
+elScrub.addEventListener('pointerup', endScrub);
+elScrub.addEventListener('pointercancel', endScrub);
+elScrub.addEventListener('pointerleave', () => { if (!scrubbing) elScrub.classList.remove('show'); });
+elScrub.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault(); e.stopPropagation();
+    seekBy((e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? SKIP_BIG : 5));
+  }
+});
+
+/* --------------------- stage gestures (tap / double tap) ----------- */
+/* Tap = play / pause (or just bring the controls back when they are
+   hidden); double tap on the left / right third = −10 / +10 s, double
+   tap in the middle = fullscreen. Same rules for mouse and touch. */
+let tapT = 0, tapX = 0, tapTimer = null, idleAtDown = false;
+// the canvas hears pointerdown before the window-level wake() clears .idle
+cvs.addEventListener('pointerdown', () => { idleAtDown = document.body.classList.contains('idle'); });
+cvs.addEventListener('pointerup', e => {
+  if (e.button !== undefined && e.button !== 0) return;
+  const now = performance.now();
+  const wasIdle = idleAtDown;
+  const zone = e.clientX < innerWidth / 3 ? -1 : e.clientX > innerWidth * 2 / 3 ? 1 : 0;
+  if (now - tapT < 320 && Math.abs(e.clientX - tapX) < 80) {
+    clearTimeout(tapTimer); tapTimer = null; tapT = 0;
+    if (zone) seekBy(zone * SKIP);
+    else toggleFull();
+    return;
+  }
+  tapT = now; tapX = e.clientX;
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => {
+    tapTimer = null;
+    if (wasIdle && e.pointerType !== 'mouse') return;     // first touch only reveals the UI
+    toggle();
+    pulse(playing ? '▶' : '❚❚');
+  }, 260);
+});
+cvs.addEventListener('dblclick', e => e.preventDefault());
 
 /* ----------------------------- song picker ------------------------- */
 const grid = $('#grid');
 function paintCards() {
   const kids = grid.children;
-  for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('cur', i === songIdx);
+  for (let i = 0; i < kids.length; i++) {
+    kids[i].classList.toggle('cur', i === songIdx);
+    kids[i].setAttribute('aria-current', i === songIdx ? 'true' : 'false');
+  }
 }
 function buildCards() {
   CAT.forEach((s, i) => {
-    const c = document.createElement('div');
+    const c = document.createElement('button');
+    c.type = 'button';
     c.className = 'card';
-    c.innerHTML = '<div class="bar"></div><div class="n"></div><div class="t"></div>' +
+    c.innerHTML = '<div class="bar"></div><div class="now">● 目前</div><div class="n"></div><div class="t"></div>' +
                   '<div class="c"></div><div class="m"></div>';
     c.querySelector('.n').textContent = String(i + 1).padStart(2, '0');
     c.querySelector('.t').textContent = s.title;
@@ -1646,35 +1892,151 @@ function buildCards() {
     c.querySelector('.m').innerHTML =
       `<span>${fmt(s.dur)}</span><span>${s.lines} 句</span><span>${Math.round(s.bpm)} BPM</span>`;
     c.querySelector('.bar').style.background = rgb((THEMES[s.theme] || THEMES.wed).a1, .9);
-    c.onclick = () => { hideList(); loadSong(i, true); };
+    c.setAttribute('aria-label', `${i + 1}. ${s.title} · ${s.cast || ''} · ${fmt(s.dur)}`);
+    c.onclick = () => {
+      hideList();
+      if (i === songIdx && SONG && SONG.id === s.id) { if (!playing) play(); }
+      else loadSong(i, true);
+    };
     grid.appendChild(c);
   });
 }
-function showList() { $('#start').classList.remove('gone'); $('#bList').classList.add('on'); }
-function hideList() { $('#start').classList.add('gone'); $('#bList').classList.remove('on'); }
-function toggleList() { $('#start').classList.contains('gone') ? showList() : hideList(); }
+// arrow keys walk the card grid
+grid.addEventListener('keydown', e => {
+  const cards = [...grid.children], i = cards.indexOf(document.activeElement);
+  if (i < 0) return;
+  const cols = Math.max(1, Math.round(grid.clientWidth / (cards[0].offsetWidth + 10)));
+  const d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols }[e.key];
+  if (d === undefined) return;
+  e.preventDefault(); e.stopPropagation();
+  const n = cards[clamp(i + d, 0, cards.length - 1)];
+  n.focus(); n.scrollIntoView({ block: 'nearest' });
+});
+function listOpen() { return !elStart.classList.contains('gone'); }
+function showList() {
+  elStart.classList.remove('gone'); $('#bList').classList.add('on');
+  paintResume();
+  const c = grid.children[songIdx];
+  if (c) setTimeout(() => { c.focus({ preventScroll: true }); c.scrollIntoView({ block: 'nearest' }); }, 60);
+}
+function hideList() {
+  elStart.classList.add('gone'); $('#bList').classList.remove('on');
+  if (elStart.contains(document.activeElement)) document.activeElement.blur();
+  wake();
+}
+function toggleList() { listOpen() ? hideList() : showList(); }
 $('#bList').onclick = toggleList;
 
+/* ------------------------ resume where you left ------------------- */
+let resumeAt = 0, resumeSaved = 0;
+function saveResume(force, t) {
+  if (!SONG) return;
+  const now = performance.now();
+  if (!force && now - resumeSaved < 2000) return;
+  resumeSaved = now;
+  PREF.set('song', SONG.id);
+  PREF.set('pos', (t === undefined ? clock : t).toFixed(1));
+}
+setInterval(() => { if (playing) saveResume(false); }, 2500);
+addEventListener('pagehide', () => saveResume(true));
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveResume(true); });
+
+function paintResume() {
+  const b = $('#resume');
+  const entry = CAT[songIdx];
+  const t = SONG ? clock : resumeAt;
+  if (!entry || playing || !(t > 3)) { b.hidden = true; return; }
+  b.hidden = false;
+  $('#resumeName').textContent = '繼續播放 ' + entry.title;
+  $('#resumeTime').textContent = fmt(t) + ' / ' + fmt(entry.dur);
+}
+$('#resume').onclick = () => { hideList(); play(); };
+
+/* ------------------------------ panels ----------------------------- */
+function setPanel(on) {
+  elPanel.classList.toggle('hide', !on);
+  $('#bLyr').classList.toggle('on', on);
+  PREF.set('panel', on ? '1' : '0');
+  safeAt = -1e9;
+}
 $('#bLyr').onclick = () => {
-  $('#panel').classList.toggle('hide');
-  $('#bLyr').classList.toggle('on', !$('#panel').classList.contains('hide'));
+  const on = elPanel.classList.contains('hide');
+  setPanel(on);
+  if (innerWidth <= 820) toast('小螢幕不顯示側邊歌詞');
+  else toast(on ? '顯示側邊歌詞' : '隱藏側邊歌詞');
 };
-$('#bFull').onclick = () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.documentElement.requestFullscreen();
-};
-$('#bQual').onclick = () => {
-  QUAL = (QUAL + 2) % 3;
+
+function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement; }
+function toggleFull() {
+  const de = document.documentElement;
+  try {
+    if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      const req = de.requestFullscreen || de.webkitRequestFullscreen;
+      if (!req) { toast('這個裝置不支援全螢幕'); return; }
+      const p = req.call(de);
+      if (p && p.catch) p.catch(() => toast('無法進入全螢幕'));
+    }
+  } catch (e) { toast('無法進入全螢幕'); }
+}
+function paintFull() { $('#bFull').classList.toggle('on', !!fsEl()); }
+document.addEventListener('fullscreenchange', paintFull);
+document.addEventListener('webkitfullscreenchange', paintFull);
+$('#bFull').onclick = toggleFull;
+
+function setQuality(q, byHand) {
+  QUAL = clamp(q, 0, 2);
+  if (byHand) qualByHand = true;
+  lowFps = 0;
   $('#qName').textContent = QNAME[QUAL];
+  PREF.set('qual', QUAL);
   resize();
+}
+$('#bQual').onclick = () => {
+  setQuality((QUAL + 2) % 3, true);
+  toast('畫質：' + QNAME[QUAL]);
 };
 $('#bEdit').onclick = () => toggleEditor();
+
+function helpOpen() { return elHelp.classList.contains('on'); }
+function toggleHelp(on) {
+  on = on === undefined ? !helpOpen() : on;
+  elHelp.classList.toggle('on', on);
+  $('#bHelp').classList.toggle('on', on);
+  if (on) $('#helpClose').focus(); else wake();
+}
+$('#bHelp').onclick = () => toggleHelp();
+$('#helpClose').onclick = () => toggleHelp(false);
+elHelp.addEventListener('click', e => { if (e.target === elHelp) toggleHelp(false); });
 
 let toastT = null;
 function toast(msg) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('on');
-  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1700);
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 1900);
 }
+
+/* ------------------------- OS media controls ---------------------- */
+/* lock screen / headset / keyboard media keys (Android app, desktop) */
+function updateMediaSession() {
+  if (!('mediaSession' in navigator) || !SONG) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: SONG.title, artist: SONG.cast || '鋒兄', album: '鋒兄宇宙 · 3D MV'
+    });
+  } catch (e) { }
+}
+(function initMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  const ms = navigator.mediaSession;
+  const on = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) { } };
+  on('play', () => play());
+  on('pause', () => pause());
+  on('previoustrack', prevSong);
+  on('nexttrack', () => loadSong(songIdx + 1, true));
+  on('seekbackward', d => seekBy(-((d && d.seekOffset) || SKIP)));
+  on('seekforward', d => seekBy((d && d.seekOffset) || SKIP));
+  on('seekto', d => { if (d && isFinite(d.seekTime)) seek(d.seekTime); });
+})();
 
 /* --------------------------- sync editor --------------------------- */
 function toggleEditor() {
@@ -1684,7 +2046,7 @@ function toggleEditor() {
   if (editing) {
     editIdx = Math.max(0, lineAt(clock - OFFSET));
     paintEditor(); toast('校時模式：用空白鍵敲每一句的開始');
-  }
+  } else toast('離開校時模式');
 }
 function paintEditor() {
   if (!LY) return;
@@ -1710,6 +2072,11 @@ function nudge(d) {
   l.t = Math.max(0, l.t + d);
   recomputeDur(); persist(); paintEditor(); lastIdx = -2;
 }
+function shiftAll(d) {
+  OFFSET = Math.round((OFFSET + d) * 10) / 10;
+  persist(); lastIdx = -2;
+  toast('整體歌詞位移 ' + (OFFSET > 0 ? '+' : '') + OFFSET.toFixed(1) + 's');
+}
 function mmss(t) {
   const m = Math.floor(t / 60), s = t - m * 60;
   return `${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
@@ -1727,8 +2094,13 @@ $('#eLrc').onclick = () => {
   toast('已匯出 ' + SONG.id + '.lrc');
 };
 $('#eRst').onclick = () => {
+  if (!confirm('確定要清除這首歌的校時與位移，還原成原始時間軸？')) return;
   store.del(keyT()); store.del(keyO());
-  toast('已清除此首的校時，重新整理後還原');
+  // restore in place instead of asking for a reload
+  const t = clock, was = playing;
+  applySong(SONG, false, t);
+  if (was) play();
+  toast('已還原原始時間軸');
 };
 
 /* drop an .lrc onto the page to apply your own timings */
@@ -1736,7 +2108,8 @@ addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0];
-  if (!f || !/\.lrc$/i.test(f.name)) return;
+  if (!f) return;
+  if (!/\.lrc$/i.test(f.name)) { toast('只接受 .lrc 歌詞檔'); return; }
   const r = new FileReader();
   r.onload = () => {
     const times = [];
@@ -1747,7 +2120,7 @@ addEventListener('drop', e => {
     if (!times.length) return toast('讀不到時間標籤');
     times.forEach((t, i) => { if (LY.lines[i]) LY.lines[i].t = t; });
     recomputeDur(); persist(); lastIdx = -2;
-    toast(`已套用 ${times.length} 句時間軸`);
+    toast(`已套用 ${Math.min(times.length, LY.lines.length)} 句時間軸`);
   };
   r.readAsText(f, 'utf-8');
 });
@@ -1756,21 +2129,46 @@ addEventListener('drop', e => {
 addEventListener('keydown', e => {
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
-  const k = e.key.toLowerCase();
-  if (k === ' ') { e.preventDefault(); editing ? tapSync() : toggle(); }
-  else if (k === 'arrowleft') { e.preventDefault(); editing ? nudge(-.1) : seek(clock - SKIP); }
-  else if (k === 'arrowright') { e.preventDefault(); editing ? nudge(.1) : seek(clock + SKIP); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;       // leave browser shortcuts alone
+  // some IMEs / virtual keyboards report an empty key for the space bar
+  const k = e.code === 'Space' ? ' ' : (e.key || '').toLowerCase();
+
+  if (k === 'escape') {
+    if (helpOpen()) toggleHelp(false);
+    else if (listOpen()) { if (SONG) hideList(); }
+    else if (editing) toggleEditor();
+    return;
+  }
+  if (k === '?' || (k === '/' && e.shiftKey)) { toggleHelp(); return; }
+  if (helpOpen()) return;
+
+  // the picker is a grid of buttons: let Enter / Space click the focused card
+  const onCard = listOpen() && e.target && e.target.classList && e.target.classList.contains('card');
+  if (onCard && (k === ' ' || k === 'enter')) return;
+
+  if (k === ' ' || k === 'k') {
+    e.preventDefault();
+    if (listOpen()) { hideList(); if (!playing) play(); return; }
+    if (editing) tapSync(); else { toggle(); pulse(playing ? '❚❚' : '▶'); }
+  }
+  else if (k === 'arrowleft') { e.preventDefault(); editing ? nudge(-.1) : seekBy(-(e.shiftKey ? SKIP_BIG : SKIP)); }
+  else if (k === 'arrowright') { e.preventDefault(); editing ? nudge(.1) : seekBy(e.shiftKey ? SKIP_BIG : SKIP); }
+  else if (k === 'arrowup') { if (listOpen()) return; e.preventDefault(); setVolume(volume + .05, true); }
+  else if (k === 'arrowdown') { if (listOpen()) return; e.preventDefault(); setVolume(volume - .05, true); }
+  else if (k === 'home') { e.preventDefault(); seek(0); pulse('⏮', '0:00'); }
+  else if (/^[0-9]$/.test(k)) { seek(DUR * (+k) / 10); pulse('⏩', k + '0%'); }
+  else if (k === 'm') toggleMute();
+  else if (k === 'r') cycleLoop();
   else if (k === 'z' && editing) { editIdx = Math.max(0, editIdx - 1); paintEditor(); }
-  else if (k === '[') { OFFSET -= .1; persist(); toast('整體位移 ' + OFFSET.toFixed(1) + 's'); lastIdx = -2; }
-  else if (k === ']') { OFFSET += .1; persist(); toast('整體位移 ' + OFFSET.toFixed(1) + 's'); lastIdx = -2; }
+  else if (k === '[') shiftAll(-.1);
+  else if (k === ']') shiftAll(.1);
   else if (k === 'l') $('#bLyr').click();
-  else if (k === 'f') $('#bFull').click();
+  else if (k === 'f') toggleFull();
   else if (k === 'q') $('#bQual').click();
   else if (k === 'e') toggleEditor();
   else if (k === 's') toggleList();
-  else if (k === 'escape') hideList();
   else if (k === 'n') loadSong(songIdx + 1, true);
-  else if (k === 'p') loadSong(songIdx - 1, true);
+  else if (k === 'p') prevSong();
 });
 
 /* idle chrome hiding */
@@ -1779,9 +2177,10 @@ function wake() {
   document.body.classList.remove('idle');
   clearTimeout(idleT);
   idleT = setTimeout(() => {
-    if (playing && !editing && $('#start').classList.contains('gone')
-        && document.activeElement !== $('#goto')) document.body.classList.add('idle');
-  }, 2600);
+    if (playing && !editing && !listOpen() && !helpOpen() && !scrubbing
+        && !$('#bottom').matches(':hover')
+        && document.activeElement !== gotoEl && document.activeElement !== volEl) document.body.classList.add('idle');
+  }, 2800);
 }
 addEventListener('mousemove', wake); addEventListener('keydown', wake);
 addEventListener('pointerdown', wake); addEventListener('touchstart', wake, { passive: true });
@@ -1791,7 +2190,8 @@ wake();
 window.__mv = {
   seek: seek, play: play, pause: pause, toggle: toggle,
   load: i => { hideList(); loadSong(i, true); },
-  state: () => ({ song: SONG && SONG.id, t: clock, playing: playing, fps: fpsShow, qual: QUAL }),
+  state: () => ({ song: SONG && SONG.id, t: clock, playing: playing, fps: fpsShow, qual: QUAL,
+                  vol: volume, muted: muted, loop: loopMode }),
   prof: secs => new Promise(res => {
     profAcc = {}; profN = 0; profOn = true;
     setTimeout(() => {
@@ -1807,9 +2207,27 @@ buildGrain();
 buildCards();
 resize();
 $('#qName').textContent = QNAME[QUAL];
-$('#bLyr').classList.add('on');
+applyVolume(false);
+paintLoop();
+setPanel(PREF.str('panel', '1') === '1');
 $('#bList').classList.add('on');
-if (CAT.length) loadSong(0, false);
+if (!document.documentElement.requestFullscreen && !document.documentElement.webkitRequestFullscreen) {
+  $('#bFull').style.display = 'none';                     // iPhone Safari has no fullscreen API
+}
+if (CAT.length) {
+  // come back to the song (and the spot in it) the viewer left
+  const lastId = PREF.str('song', '');
+  let startIdx = CAT.findIndex(s => s.id === lastId);
+  resumeAt = 0;
+  if (startIdx < 0) startIdx = 0;
+  else {
+    const pos = PREF.num('pos', 0);
+    if (pos > 3 && pos < CAT[startIdx].dur - 5) resumeAt = pos;
+  }
+  songIdx = startIdx;
+  paintResume();
+  loadSong(startIdx, false, resumeAt);
+}
 requestAnimationFrame(frame);
 
 })();
