@@ -140,6 +140,44 @@
     #time{font-size:11px;min-width:96px}
     #marks b{display:none}
   }
+  /* small phones (iPhone SE and friends) and any short viewport: the
+     transport wrapped onto three rows and ate a third of the screen */
+  @media (max-width:480px),(max-height:620px){
+    .k{display:none}
+    #scrub{height:34px}
+    #row{gap:6px;margin-top:7px}
+    button.b{font-size:10px;padding:7px 10px;letter-spacing:.06em}
+    #play{width:42px;height:42px;font-size:15px}
+    .nav{width:32px;height:32px}
+    .skip{padding:8px 9px;letter-spacing:.04em}
+    #goto{width:70px;padding:7px 4px}
+    #time{font-size:10px;min-width:72px;letter-spacing:.06em}
+    #bottom{padding:0 10px 10px}
+    #top{padding:10px 12px;gap:8px}
+    #top h1{font-size:14px}
+    #top .cast{margin-top:3px}
+    .tag{padding:5px 9px;letter-spacing:.18em}
+    #fps{min-width:58px}
+    #editor{left:10px;right:10px;bottom:auto;top:12px;padding:12px 14px}
+    #toast{bottom:auto;top:70px}
+    #start .in{padding:24px 16px 40px}
+    #start .kicker{letter-spacing:.42em;margin-bottom:12px}
+    #start .sub{font-size:11px;letter-spacing:.2em}
+    #start .keys{display:none}
+    #grid{gap:10px;margin-top:22px}
+    .card{padding:14px 14px 12px;border-radius:13px}
+    .card .t{font-size:15px;margin:7px 0 5px}
+    .card .m{margin-top:9px;gap:8px}
+  }
+  /* 320px wide (iPhone SE 1st gen, older Android): squeeze the transport
+     back down to two rows */
+  @media (max-width:360px){
+    #row{gap:5px}
+    button.b{padding:6px 8px;font-size:9.5px;letter-spacing:.04em}
+    .skip{padding:7px 7px}
+    #goto{width:56px}
+    #time{min-width:62px;font-size:9px;letter-spacing:.04em}
+  }
 </style>
 </head>
 <body>
@@ -175,11 +213,11 @@
     <div id="time">0:00 / 0:00</div>
     <input id="goto" class="b" type="text" inputmode="numeric" autocomplete="off"
            spellcheck="false" maxlength="9" placeholder="跳到 1:23" title="輸入時間後按 Enter 跳轉">
-    <button class="b" id="bList">歌曲 S</button>
-    <button class="b" id="bLyr">字幕 L</button>
-    <button class="b" id="bEdit">校時 E</button>
-    <button class="b" id="bQual">畫質 Q · 高</button>
-    <button class="b" id="bFull">全螢幕 F</button>
+    <button class="b" id="bList">歌曲 <span class="k">S</span></button>
+    <button class="b" id="bLyr">字幕 <span class="k">L</span></button>
+    <button class="b" id="bEdit">校時 <span class="k">E</span></button>
+    <button class="b" id="bQual">畫質 <span class="k">Q ·</span> <span id="qName">高</span></button>
+    <button class="b" id="bFull">全螢幕 <span class="k">F</span></button>
     <div id="now"></div>
   </div>
 </div>
@@ -216,7 +254,7 @@
 </div>
 
 <audio id="audio" preload="auto"></audio>
-<script src="data/songs.js?v=1.0.5"></script>
-<script src="js/engine.js?v=1.0.5"></script>
+<script src="data/songs.js?v=1.0.6"></script>
+<script src="js/engine.js?v=1.0.6"></script>
 </body>
 </html>

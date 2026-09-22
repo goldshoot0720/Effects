@@ -147,7 +147,7 @@ function resize() {
   bA.width = Math.max(256, Math.floor(W * .5)); bA.height = Math.max(256, Math.floor(H * .5));
   const bs = QUAL === 2 ? .25 : .18;
   bB.width = Math.max(256, Math.floor(W * bs)); bB.height = Math.max(256, Math.floor(H * bs));
-  buildStars(); layoutCache.clear(); drawWave();
+  safeAt = -1e9; buildStars(); layoutCache.clear(); drawWave();
 }
 addEventListener('resize', resize);
 
@@ -744,42 +744,63 @@ function glyph(ch, x, y, size, o) {
 }
 
 /* The lyric list is a fixed 330px column on a wide screen, so centre the
-   sung line in what is left of the stage instead of running under it. */
-let LX = 0, LW = 0;
+   sung line in what is left of the stage instead of running under it.
+   The title row and the transport are HTML on top of the canvas, so the
+   band between them is all the room the type really has — on a small
+   phone (iPhone SE) the transport alone eats a third of the screen. */
+let LX = 0, LW = 0, SAFE_T = 0, SAFE_B = 0, safeAt = -1e9;
 function lyricArea() {
   const el = $('#panel');
   const pw = (el && innerWidth > 820 && !el.classList.contains('hide')) ? 330 * DPR : 0;
   LX = CX - pw / 2; LW = W - pw;
+  // measuring the chrome forces a layout, so do it a few times a second
+  // instead of once a frame — it only moves when the window does
+  const now = performance.now();
+  if (now - safeAt < 250) return;
+  safeAt = now;
+  const top = $('#top'), bot = $('#bottom');
+  SAFE_T = (top ? top.getBoundingClientRect().bottom : 0) * DPR + MIN * .03;
+  SAFE_B = (bot ? bot.getBoundingClientRect().top : innerHeight) * DPR - MIN * .03;
+  if (!(SAFE_B - SAFE_T > MIN * .18)) { SAFE_T = H * .3; SAFE_B = H * .78; }
+}
+
+/* Row spacing and the exact height of a rendered lyric block, so
+   neighbouring lines can be placed without ever overlapping. */
+const LH_KIN = 1.34, LH_SUB = 1.3;
+function isDense(L) { return L.chars.length > 22 || L.rows >= 3; }
+function blockH(L, size) {
+  const dense = isDense(L);
+  return ((L.rows - 1) * (dense ? LH_SUB : LH_KIN) + (dense ? 1.9 : 1.35)) * size;
+}
+function blockHalf(line) {
+  const f = fitLine(line);
+  return blockH(f.L, f.size) / 2;
 }
 
 /* Picks a readable size for a lyric line, wrapping it onto extra rows
-   rather than shrinking it to nothing on a narrow (phone) screen. */
+   rather than shrinking it to nothing on a narrow (phone) screen. Extra
+   rows cost height, which a short screen does not have, so the block is
+   also kept inside the band left between the title row and the transport. */
 function fitLine(line) {
   const chorus = line.kind === 'chorus';
   const maxW = (LW || W) * (chorus ? .86 : .82);
   const cap = chorus ? MIN * .088 : MIN * .072;
+  const avail = Math.max(MIN * .12, SAFE_B - SAFE_T);
   let rows = 1;
   const probe = layout(line, 100, 1).total;
   if (!(probe > 0)) return { size: MIN * .05, rows: 1, L: layout(line, MIN * .05, 1) };
   let size = Math.min(cap, maxW / (probe / 100));
   while (rows < 6 && size < MIN * .062) {
     const next = rows + 1;
-    const s2 = Math.min(cap, maxW / (layout(line, 100, next).total / 100));
-    if (s2 <= size) break;
+    const Ln = layout(line, 100, next);
+    const s2 = Math.min(cap, maxW / (Ln.total / 100));
+    if (s2 <= size || blockH(Ln, s2) > avail) break;
     rows = next; size = s2;
   }
-  return { size: size, rows: rows, L: layout(line, size, rows) };
-}
-
-/* Row spacing and the exact half-height of a rendered lyric block, so
-   neighbouring lines can be placed without ever overlapping. */
-const LH_KIN = 1.34, LH_SUB = 1.3;
-function isDense(L) { return L.chars.length > 22 || L.rows >= 3; }
-function blockHalf(line) {
-  const f = fitLine(line);
-  const dense = isDense(f.L);
-  const lh = dense ? LH_SUB : LH_KIN;
-  return ((f.L.rows - 1) * lh + (dense ? 1.9 : 1.35)) * f.size / 2;
+  let L = layout(line, size, rows);
+  const h = blockH(L, size);
+  if (h > avail) { size *= avail / h; L = layout(line, size, rows); }
+  return { size: size, rows: rows, L: L };
 }
 
 /* Readable subtitle block: dark plate + outlined text, no per-glyph FX. */
@@ -1411,18 +1432,16 @@ function frame(now) {
     const outAt = cur.t + cur.d;
     // a tall wrapped block must not run under the waveform / transport,
     // which is where a landscape phone puts it otherwise
-    // a tall wrapped block must not run under the waveform / transport,
-    // which is where a landscape phone puts it otherwise
     const half = blockHalf(cur);
-    const hi = H * .74 - half, lo = H * .34;
-    yMain = hi < lo ? H * .52 : clamp(yMain, lo, hi);
+    const hi = SAFE_B - half, lo = SAFE_T + half;
+    yMain = hi < lo ? (SAFE_T + SAFE_B) / 2 : clamp(yMain, lo, hi);
 
     // the fading previous line only appears when it fits completely above
     // the current block — lyrics must never sit on top of each other
     if (prev && lt < prev.t + prev.d + .75) {
       const pHalf = blockHalf(prev);
       const py = yMain - half - pHalf - MIN * .022;
-      if (py - pHalf > H * .10) {
+      if (py - pHalf > SAFE_T) {
         drawLine(prev, lt, py, {
           alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
         });
@@ -1433,7 +1452,7 @@ function frame(now) {
     const nx = LY.lines[curIdx + 1];
     if (nx && nx.t - lt < 1.1 && lt > outAt - .2) {
       const ny = yMain + half + MIN * .045;
-      if (ny + MIN * .02 < H * .80) {
+      if (ny + MIN * .02 < SAFE_B) {
         caption(nx.text, ny, MIN * .026,
                 clamp(1 - (nx.t - lt) / 1.1, 0, 1) * .22, P.ink, LX, LW);
       }
@@ -1646,7 +1665,7 @@ $('#bFull').onclick = () => {
 };
 $('#bQual').onclick = () => {
   QUAL = (QUAL + 2) % 3;
-  $('#bQual').textContent = '畫質 Q · ' + QNAME[QUAL];
+  $('#qName').textContent = QNAME[QUAL];
   resize();
 };
 $('#bEdit').onclick = () => toggleEditor();
@@ -1787,7 +1806,7 @@ window.__mv = {
 buildGrain();
 buildCards();
 resize();
-$('#bQual').textContent = '畫質 Q · ' + QNAME[QUAL];
+$('#qName').textContent = QNAME[QUAL];
 $('#bLyr').classList.add('on');
 $('#bList').classList.add('on');
 if (CAT.length) loadSong(0, false);
