@@ -773,7 +773,7 @@ function fitLine(line) {
 
 /* Row spacing and the exact half-height of a rendered lyric block, so
    neighbouring lines can be placed without ever overlapping. */
-const LH_KIN = 1.25, LH_SUB = 1.3;
+const LH_KIN = 1.34, LH_SUB = 1.3;
 function isDense(L) { return L.chars.length > 22 || L.rows >= 3; }
 function blockHalf(line) {
   const f = fitLine(line);
@@ -897,7 +897,7 @@ function drawLine(line, t, yBase, opts) {
         o.z = (1 - e) * 1700; o.ry = (1 - e) * .9; o.alpha = p;
         o.trail = 1 - p; o.tx = -L.pos[i] * .12 * (1 - p); break;
       case 'drop':
-        y = -(1 - eb) * MIN * .32; o.rx = (1 - e) * 1.4; o.alpha = p;
+        y += -(1 - eb) * MIN * .32; o.rx = (1 - e) * 1.4; o.alpha = p;
         o.trail = (1 - p) * .8; o.ty = -size * .5 * (1 - p); break;
       case 'slide':
         x += -(1 - easeOutQ(p)) * MIN * .7; o.alpha = p;
@@ -910,7 +910,7 @@ function drawLine(line, t, yBase, opts) {
       case 'spin':
         o.rz = (1 - e) * 2.2; o.scale = lerp(.2, 1, eb); o.alpha = p; break;
       case 'wave':
-        o.alpha = p; y = Math.sin(t * 3.4 - i * .45) * size * .12 * (.4 + F.mid);
+        o.alpha = p; y += Math.sin(t * 3.4 - i * .45) * size * .12 * (.4 + F.mid);
         o.rz = Math.sin(t * 2.2 - i * .4) * .06; break;
       default:
         o.alpha = p; o.scale = lerp(1.4, 1, e); break;
