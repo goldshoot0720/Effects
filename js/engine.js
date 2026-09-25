@@ -1149,6 +1149,47 @@ function drawOutro(t) {
   caption(LY.tagline, bottom + MIN * .085, MIN * .018, a * .45, P.ink);
 }
 
+/* ---------------------------- cartoon cast ------------------------- */
+/* The hand-drawn troupe lives in js/toons.js so this file stays about the
+   camera and the type. It cannot see anything in here, so it gets one
+   object with everything it needs; the fields are refreshed in place so
+   a frame never allocates. The cast plays in the band above the sung
+   line — the floor it stands on rises and falls with the lyric block, so
+   the drawing and the type never end up on the same pixels. */
+const TOON = window.MV_TOONS || null;
+let toonFloor = 0;
+const TG = {
+  ctx: ctx, font: font, rgb: rgb, S: S, P: P, TH: TH, F: F, MOTION: MOTION,
+  t: 0, dt: 0, act: '', pw: 1, prog: 0,
+  W: 0, H: 0, CX: 0, CY: 0, MIN: 0, QUAL: 2,
+  top: 0, bot: 0, secIdx: 0, secAge: 0, lineIdx: -1, lineAge: 0, hot: false
+};
+function drawToons(t, dt, lt, act, floorTarget, secIdx, lineIdx, lineAge, hot) {
+  if (!TOON || !SONG || !TOON.has(SONG.theme)) return;
+  // the floor gives way to a new line at once but takes its time coming
+  // back down, so the cast can never be caught standing on fresh type
+  toonFloor = toonFloor > 0
+    ? (floorTarget < toonFloor ? floorTarget : lerp(toonFloor, floorTarget, 1 - Math.pow(.05, dt)))
+    : floorTarget;
+  TG.t = t; TG.dt = dt; TG.act = act; TG.TH = TH;
+  TG.prog = DUR > 0 ? clamp(lt / DUR, 0, 1) : 0;
+  TG.W = W; TG.H = H; TG.CX = CX; TG.CY = CY; TG.MIN = MIN; TG.QUAL = QUAL;
+  TG.top = SAFE_T + MIN * .02;
+  TG.bot = toonFloor - MIN * .025;
+  // a three-row sung line can leave almost nothing above it. Never push the
+  // floor back down into the type to make room — let the cast shrink, and
+  // fade it back as the stage closes in so it reads as a backdrop
+  const room = TG.bot - TG.top;
+  if (room < MIN * .05) return;
+  TG.secIdx = secIdx; TG.secAge = lt - (SEC[secIdx] ? SEC[secIdx].start : 0);
+  TG.lineIdx = lineIdx; TG.lineAge = lineAge; TG.hot = hot;
+  // fade in with the opening and back out with the credits
+  TG.pw = clamp(lt / 1.2, 0, 1) * clamp((DUR - lt) / 1.2, 0, 1)
+        * (act === 'intro' ? .8 : 1)
+        * clamp(.32 + (room / MIN - .08) / .08 * .68, .32, 1);
+  TOON.draw(SONG.theme, TG);
+}
+
 /* --------------------------- post processing ----------------------- */
 let grainPat = null;
 function buildGrain() {
@@ -1457,27 +1498,38 @@ function frame(now) {
 
   /* ---- lyrics ---- */
   lyricArea();
-  drawIntro(lt);
-  let yMain = CY + MIN * .1;
-  if (curIdx >= 0) {
-    const cur = LY.lines[curIdx], prev = LY.lines[curIdx - 1];
-    const outAt = cur.t + cur.d;
+  // where the sung line lands has to be known before the cartoon cast
+  // draws, because the cast uses it as its floor
+  const cur = curIdx >= 0 ? LY.lines[curIdx] : null;
+  const prev = curIdx > 0 ? LY.lines[curIdx - 1] : null;
+  let yMain = CY + MIN * .1, half = 0, lyrTop = SAFE_B, pShow = null;
+  if (cur) {
     // a tall wrapped block must not run under the waveform / transport,
     // which is where a landscape phone puts it otherwise
-    const half = blockHalf(cur);
+    half = blockHalf(cur);
     const hi = SAFE_B - half, lo = SAFE_T + half;
     yMain = hi < lo ? (SAFE_T + SAFE_B) / 2 : clamp(yMain, lo, hi);
-
+    lyrTop = yMain - half;
     // the fading previous line only appears when it fits completely above
     // the current block — lyrics must never sit on top of each other
     if (prev && lt < prev.t + prev.d + .75) {
       const pHalf = blockHalf(prev);
       const py = yMain - half - pHalf - MIN * .022;
-      if (py - pHalf > SAFE_T) {
-        drawLine(prev, lt, py, {
-          alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
-        });
-      }
+      if (py - pHalf > SAFE_T) { pShow = { y: py, half: pHalf }; lyrTop = py - pHalf; }
+    }
+  }
+  // the cast plays above everything the lyrics are using, the ghost of the
+  // previous line included
+  drawToons(t, dt, lt, act, lyrTop, secIdx, curIdx, curLine ? lt - curLine.t : 0, hot);
+  PROF('toons');
+  drawIntro(lt);
+  if (cur) {
+    const outAt = cur.t + cur.d;
+
+    if (pShow) {
+      drawLine(prev, lt, pShow.y, {
+        alpha: clamp(1 - (lt - (prev.t + prev.d)) / .7, 0, 1) * .28, outAt: prev.t + prev.d
+      });
     }
     if (lt < outAt + .55) drawLine(cur, lt, yMain, { outAt: outAt });
 

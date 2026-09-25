@@ -21,6 +21,7 @@
   <ItemGroup>
     <AndroidAsset Include="..\..\..\index.html" Link="Assets\Web\index.html" />
     <AndroidAsset Include="..\..\..\js\engine.js" Link="Assets\Web\js\engine.js" />
+    <AndroidAsset Include="..\..\..\js\toons.js" Link="Assets\Web\js\toons.js" />
     <AndroidAsset Include="..\..\..\data\songs.js" Link="Assets\Web\data\songs.js" />
     <AndroidAsset Include="..\..\..\data\song\*.js" Link="Assets\Web\data\song\%(Filename)%(Extension)" />
     <AndroidAsset Include="..\..\..\audio\*.mp3" Link="Assets\Web\audio\%(Filename)%(Extension)" />
