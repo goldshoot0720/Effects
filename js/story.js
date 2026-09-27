@@ -45,41 +45,48 @@ const CAST = {
             cloth:'#1e2a5e', cloth2:'#141d42', inner:'#f4f2f8',
             skirt:'#1e2a5e', skirtTrim:'#c8a04a', socks:'#f4f2f8', shoes:'#1a2450',
             collar:'#ffffff', bowtie:'#16204a', apron:1, apronCol:'#ffffff', apronMark:'#2a5aa8',
-            tailKind:'whale', tailCol:'#1e2a6e', eye:'#2a7ad8', shine:'#dff0ff', blush:1 },
+            tailKind:'whale', tailCol:'#1e2a6e', eye:'#2a7ad8', shine:'#dff0ff', blush:1,
+            eyeType:'round', fringe:'wave' },
   // 咕咕嘎嘎：企鵝連帽外套（黃喙、白眼圈）、奶油色前襟、深褐妹妹頭、黑短褲長襪
   gugu:   { name:'咕咕嘎嘎', fem:1, hood:'#1b1b20', hood2:'#0e0e12', beak:'#f5b400',
             hair:'#3a2a22', hair2:'#241810', cloth:'#1b1b20', cloth2:'#101014',
             inner:'#f2ece0', pouch:1, pants:'#1b1b20', shoes:'#1b1b20',
-            collar:'#f2ece0', eye:'#8a8f9a', shine:'#6a6a74', blush:1 },
+            collar:'#f2ece0', eye:'#8a8f9a', shine:'#6a6a74', blush:1,
+            eyeType:'bead', fringe:'bob' },
   // 鋒兄：黑短髮、眼鏡、鬍子、卡其飛行外套內搭黑T、牛仔褲、白鞋
   feng:   { name:'鋒兄', male:1, hair:'#171318', hair2:'#0b090d', cloth:'#c9a978', cloth2:'#9c8055',
             inner:'#24242a', collar:'#3a4460', glasses:'#2a2a30', beard:'#171318',
-            pants:'#4f79ad', shoes:'#f2f2f4', eye:'#3a2a20', shine:'#4a4450' },
+            pants:'#4f79ad', shoes:'#f2f2f4', eye:'#3a2a20', shine:'#4a4450',
+            eyeType:'narrow', fringe:'split' },
   // 塗哥：黑髮、灰T恤有白色字塊、牛仔褲、白鞋
   tu:     { name:'塗哥', male:1, hair:'#141018', hair2:'#080610', cloth:'#8a8a8e', cloth2:'#63636a',
             collar:'#8a8a8e', logo:1, pants:'#4f79ad', shoes:'#f2f2f4',
-            eye:'#3a2a20', shine:'#4a4450' },
+            eye:'#3a2a20', shine:'#4a4450', eyeType:'keen', fringe:'spike' },
   // 喵布布：三花貓，白底橘黑斑、綠眼、黑飛行外套內搭奶油帽T、黑工裝褲、橘白尾巴
   bubu:   { name:'喵布布', cat:1, hair:'#f4efe8', hair2:'#d8cfc4', patch:'#e08a3c', patch2:'#2a2228',
             earIn:'#ffb4c8', muzzle:'#fffaf6', cloth:'#1c1c20', cloth2:'#111114',
             inner:'#efe6d8', pouch:1, pants:'#1c1c20', shoes:'#f0f0f2',
-            collar:'#efe6d8', tailKind:'cat', tailCol:'#e08a3c', tailTip:'#f4efe8', eye:'#7ac44a' },
+            collar:'#efe6d8', tailKind:'cat', tailCol:'#e08a3c', tailTip:'#f4efe8', eye:'#7ac44a',
+            eyeType:'slit' },
   // 喵白白：白貓，頭上一塊灰黑、黃綠眼、奶油刷毛帽T、黑工裝褲、白灰尾巴
   baibai: { name:'喵白白', cat:1, hair:'#f6f4f2', hair2:'#dad6d2', patch:'#4a4a50',
             earIn:'#ffc4d2', muzzle:'#ffffff', cloth:'#efe8dc', cloth2:'#cfc6b8',
             pouch:1, pants:'#26262c', shoes:'#f0f0f2', collar:'#efe8dc',
             nose:'#e8a0b0', whisker:'#a8a4a0',
-            tailKind:'cat', tailCol:'#f6f4f2', tailTip:'#8a8a92', eye:'#b8c44a' },
+            tailKind:'cat', tailCol:'#f6f4f2', tailTip:'#8a8a92', eye:'#b8c44a',
+            eyeType:'slitL' },
   // 牙妹：紅髮雙馬尾＋貓耳、黑緞帶、黑洋裝配紅蝴蝶結、紅線黑褶裙、黑長襪、咖啡樂福鞋
   ya:     { name:'牙妹', fem:1, hair:'#a8342a', hair2:'#7a2018', twin:1, ribbon:'#1a1418',
             ears:'cat', earIn:'#f0d8c0', cloth:'#1e1a20', cloth2:'#120f14',
             skirt:'#1e1a20', skirtTrim:'#c02a2a', socks:'#1a1620', shoes:'#4a3428',
-            collar:'#ffffff', bowtie:'#d02a2a', eye:'#c8702a', shine:'#d86a52', blush:1 },
+            collar:'#ffffff', bowtie:'#d02a2a', eye:'#c8702a', shine:'#d86a52', blush:1,
+            eyeType:'sharp', fringe:'puff' },
   // 魚妹：深褐長髮、水藍水手服、海軍藍領巾與百褶裙、海軍藍長襪、咖啡樂福鞋
   yu:     { name:'魚妹', fem:1, hair:'#3a2a26', hair2:'#241816', long:1, hair3:'#4a352e',
             cloth:'#a8c8e8', cloth2:'#7fa4c8', sailor:1, sailorCol:'#1e2a4e', tieCol:'#1e2a4e',
             skirt:'#1e2a4e', socks:'#1e2a4e', shoes:'#4a3428',
-            collar:'#ffffff', eye:'#3a7ad8', shine:'#6a5a50', blush:1 }
+            collar:'#ffffff', eye:'#3a7ad8', shine:'#6a5a50', blush:1,
+            eyeType:'droop', fringe:'blunt' }
 };
 const FENG = CAST.feng, TU = CAST.tu;
 

@@ -422,12 +422,37 @@ function figure(o) {
   }
 }
 
+/* --------------------------- eye shapes ---------------------------- */
+/* The eight used to share one pair of eyes with a male / female size
+   switch, which is why they all read as the same person in a close-up.
+   Each entry is a shape: `tilt` lifts the outer corner into a tsurime or
+   drops it into a tareme, `lash` is how heavy the upper lash line sits,
+   `low` the lower lash, `hi` the highlight block, `brow` the brow weight.
+   `plain` / `plainM` reproduce the old pair, so a character with no
+   eyeType looks exactly as it did. */
+const EYES = {
+  plain:  { w: 17, h: 22, tilt:  0, lash: 4, low: 2, hi: 6, brow: 3 },
+  plainM: { w: 14, h: 15, tilt:  0, lash: 4, low: 0, hi: 6, brow: 5 },
+  round:  { w: 18, h: 24, tilt:  0, lash: 4, low: 2, hi: 7, brow: 3 },
+  wave:   { w: 18, h: 22, tilt: -1, lash: 4, low: 2, hi: 6, brow: 3 },
+  sharp:  { w: 16, h: 19, tilt:  3, lash: 5, low: 2, hi: 5, brow: 4 },
+  droop:  { w: 18, h: 21, tilt: -3, lash: 4, low: 2, hi: 6, brow: 3 },
+  narrow: { w: 14, h: 15, tilt:  1, lash: 4, low: 0, hi: 5, brow: 5 },
+  keen:   { w: 15, h: 16, tilt:  2, lash: 5, low: 0, hi: 4, brow: 6 },
+  bead:   { w: 12, h: 12, tilt:  0, lash: 3, low: 0, hi: 4, brow: 2 },
+  slit:   { w: 17, h: 21, tilt:  2, lash: 4, low: 1, hi: 5, brow: 3 },
+  slitL:  { w: 19, h: 23, tilt:  0, lash: 3, low: 1, hi: 6, brow: 3 },
+};
+const eyeOf = o => EYES[o.eyeType] || (o.male ? EYES.plainM : EYES.plain);
+
 /* --------------------------- bust portrait ------------------------- */
 /* The close-up: head and shoulders in a framed window, the way a PC-98
    adventure game put a character beside the text. It gets about three
    times the pixels the stage figure does, so this is where the face
    actually gets drawn — layered fringe, a four-tone iris, an eyelid
-   crease, a lower lash. Drawn in a 100×125 box, head at the top. */
+   crease, a lower lash. The body sits in a 100×125 box with the head at
+   the top, but ears and an ahoge reach past it — bustBox() holds the real
+   bounds, and any frame that clips this must fit THAT, not the 125. */
 function bust(o) {
   const w = o.w, u = w / 100, x = Math.round(o.x), yTop = Math.round(o.y);
   const U = v => Math.round(v * u);
@@ -509,6 +534,11 @@ function bust(o) {
       P(sd < 0 ? 23 : 67, 27, 10, 10, o.hood);
     }
     P(26, 60, 48, 14, hair);                     // the fringe under the hood
+    if (o.fringe === 'bob') {                    // 妹妹頭: blunt, with side panels
+      P(24, 58, 52, 5, hair2);
+      P(22, 60, 8, 20, hair); P(70, 60, 8, 20, hair);
+      P(22, 60, 3, 20, hair2); P(75, 60, 3, 20, hair2);
+    }
   } else {
     P(24, 6, 52, 5, skin);
     P(19, 11, 62, 60, skin);
@@ -521,10 +551,40 @@ function bust(o) {
     P(16, 6, 68, 22, hair);
     P(16, 6, 6, 62, hair2);
     P(78, 6, 6, 62, hair2);
-    for (let i = 0; i < 5; i++) {
-      const lx = 20 + i * 13;
-      P(lx, 26, 10, 5 + (i % 2 ? 7 : 0), hair);
-      P(lx, 26, 3, 4 + (i % 2 ? 5 : 0), hair2);
+    // The hairline is the one edge that tells two characters apart at a
+    // glance, so each gets its own cut rather than the same five locks.
+    const FR = o.fringe || 'lock';
+    if (FR === 'blunt') {                        // hime cut: one straight edge
+      P(16, 26, 68, 11, hair);
+      P(16, 26, 68, 3, hair2);
+      P(16, 36, 11, 12, hair); P(73, 36, 11, 12, hair);   // longer at the cheeks
+      P(16, 36, 4, 12, hair2); P(80, 36, 4, 12, hair2);
+    } else if (FR === 'split') {                 // parted, swept to both sides
+      P(18, 26, 29, 10, hair); P(53, 26, 29, 10, hair);
+      P(18, 26, 6, 14, hair2); P(76, 26, 6, 14, hair2);
+      P(44, 24, 12, 4, skin3);                   // the parting itself
+    } else if (FR === 'spike') {                 // cut at angles, jagged
+      for (let i = 0; i < 6; i++) {
+        const lx = 17 + i * 11;
+        tri(x + U(lx), y + U(26), x + U(lx + 11), y + U(26), x + U(lx + (i % 2 ? 11 : 0)), y + U(38), hair);
+        P(lx, 26, 3, 5, hair2);
+      }
+    } else if (FR === 'wave') {                  // soft scallops
+      for (let i = 0; i < 4; i++) {
+        const lx = 18 + i * 16;
+        P(lx, 26, 16, 6 + (i % 2 ? 7 : 0), hair);
+        P(lx, 26 + (i % 2 ? 7 : 0), 5, 6, hair3);
+      }
+    } else if (FR === 'puff') {                  // rounded and full
+      P(18, 26, 64, 8, hair);
+      P(21, 33, 13, 8, hair); P(43, 33, 14, 11, hair); P(66, 33, 13, 8, hair);
+      P(21, 33, 4, 7, hair2); P(43, 33, 4, 9, hair2); P(66, 33, 4, 7, hair2);
+    } else {                                     // the original five locks
+      for (let i = 0; i < 5; i++) {
+        const lx = 20 + i * 13;
+        P(lx, 26, 10, 5 + (i % 2 ? 7 : 0), hair);
+        P(lx, 26, 3, 4 + (i % 2 ? 5 : 0), hair2);
+      }
     }
     P(26, 11, 22, 5, o.shine || '#ffffff');
     P(54, 13, 15, 4, o.shine || '#ffffff');
@@ -553,13 +613,14 @@ function bust(o) {
   const blink = ((t * .62 + (o.ph || 0)) % 1) > .95;
   const iris = o.eye || '#3a6ad8';
   const irisD = shade(iris, .5), irisL = shade(iris, 1.45);
-  const EW = male ? 14 : 17, EH = male ? 15 : 22;
+  const E = eyeOf(o);
+  const EW = E.w, EH = E.h, HI = E.hi;
   const ey = cat ? 28 : 34;
   for (const sd of [-1, 1]) {
     const ex = sd < 0 ? 50 - 8 - EW : 50 + 8;
     if (blink) { P(ex, ey + EH / 2, EW, 3, OUT); continue; }
     P(ex, ey, EW, EH, '#ffffff');
-    P(ex, ey, EW, 4, shade('#ffffff', .82));        // shadow under the lid
+    P(ex, ey, EW, E.lash, shade('#ffffff', .82));   // shadow under the lid
     if (cat) {
       P(ex + 1, ey + 2, EW - 2, EH - 4, iris);
       P(ex + 1, ey + EH - 9, EW - 2, 7, irisD);
@@ -570,17 +631,28 @@ function bust(o) {
       P(ex + 2, ey + EH - 6, EW - 4, 3, irisL);
       P(ex + 4, ey + 6, EW - 8, EH - 12, OUT);       // pupil
     }
-    P(ex, ey, EW, 4, OUT);                           // lash line
+    P(ex, ey, EW, E.lash, OUT);                      // lash line
     P(ex - 1, ey - 1, 4, 4, OUT);
     P(ex + EW - 3, ey - 1, 4, 4, OUT);
-    if (!male) P(ex, ey + EH - 2, EW, 2, shade(iris, .35));   // lower lash
-    P(ex + (sd < 0 ? 2 : EW - 8), ey + 5, 6, 6, '#ffffff');   // highlight
+    // the outer corner is what makes an eye read as sharp or sleepy: it
+    // spikes up for a tsurime, trails down for a tareme.
+    if (E.tilt) {
+      const ox = sd < 0 ? ex - 1 : ex + EW - 3;
+      if (E.tilt > 0) P(ox, ey - 1 - E.tilt, 4, 3 + E.tilt, OUT);
+      else            P(ox, ey + EH - 2, 4, 2 - E.tilt, OUT);
+    }
+    if (E.low) P(ex, ey + EH - E.low, EW, E.low, shade(iris, .35));   // lower lash
+    P(ex + (sd < 0 ? 2 : EW - HI - 2), ey + 5, HI, HI, '#ffffff');    // highlight
     P(ex + (sd < 0 ? EW - 5 : 2), ey + EH - 8, 3, 3, '#ffffff');
   }
   if (!cat) {
-    const bw2 = male ? 5 : 3;
-    P(50 - 8 - EW, ey - 9, EW, bw2, hair2);
-    P(50 + 8, ey - 9, EW, bw2, hair2);
+    const bw2 = E.brow;
+    // the brow follows the eye: its outer end rides up or down with the tilt
+    for (const sd of [-1, 1]) {
+      const bx0 = sd < 0 ? 50 - 8 - EW : 50 + 8;
+      P(bx0, ey - 9, EW, bw2, hair2);
+      if (E.tilt) P(sd < 0 ? bx0 : bx0 + EW - 6, ey - 9 - (E.tilt > 0 ? 2 : -2), 6, bw2, hair2);
+    }
     P(48, 60, 4, 3, skin3);                          // nose
     if (o.sing > .2) {
       P(44, 68, 12, 7, '#7a2030');
@@ -608,14 +680,33 @@ function bust(o) {
   }
 }
 
+/* The silhouette a bust actually paints, in the same 100-unit coordinates
+   bust() draws in. It is NOT the 100x125 body box: an ahoge, cat ears and
+   fin ears all reach outside it, and those are exactly the parts the window
+   used to slice off. portrait() fits THIS box, so nothing gets clipped. */
+function bustBox(o) {
+  let top = -2;                                  // the fringe's topmost lock
+  if (o.ahoge) top = -16;
+  else if (o.cat || o.ears === 'cat') top = -14;
+  else if (o.hood) top = 6;
+  const fin = o.ears === 'fin';
+  return { top, bot: 125, left: fin ? -6 : 0, right: fin ? 106 : 100 };
+}
+
 /* the framed portrait: window chrome, name plate, slide-in */
 function portrait(g, who, p) {
   if (!who) return;
   const P = g.P;
-  const bh2 = Math.round(BH * (port ? .36 : .58));
+  // Portrait hangs the window between the terminal and the subtitle, which
+  // is the tall empty column a phone held upright actually has; landscape
+  // tucks it under the loading bar. The old .36 / .58 left a box too short
+  // to hold a whole head, so every bust lost its crown and its shoulders.
+  let bh2 = Math.round(BH * (port ? .40 : .66));
+  let by = Math.round(port ? BH * .365 : g.fy - bh2 + BH * .04);
+  if (!port && by < 22) { bh2 -= 22 - by; by = 22; }   // clear the loading bar
   const bw2 = Math.round(bh2 * .8);
   const slide = (1 - easeOut(clamp(p, 0, 1))) * bw2 * .5;
-  const bx = Math.round(4 - slide), by = Math.round(g.fy - bh2 + BH * .04);
+  const bx = Math.round(4 - slide);
   b.save();
   b.globalAlpha = clamp(p * 1.6, 0, 1);
   fill(bx + 2, by + 2, bw2, bh2, '#000');
@@ -626,8 +717,18 @@ function portrait(g, who, p) {
   fill(bx + 1, by + 1, bw2 - 2, 9, P.bg2);
   text(who.name || '', bx + 3, by + 2, 7, P.ink, 'left', 700);
   b.save();
-  b.beginPath(); b.rect(bx + 2, by + 11, bw2 - 4, bh2 - 13); b.clip();
-  bust({ ...who, x: bx + bw2 * .03, y: by + 13, w: bw2 * .94, t: g.t, sing: g.F.level });
+  const ix = bx + 2, iy = by + 11, iw = bw2 - 4, ih = bh2 - 13;
+  b.beginPath(); b.rect(ix, iy, iw, ih); b.clip();
+  // Fit the whole silhouette into the window and centre it, rather than
+  // scaling by width alone. The 3px of slack is the breathing bob, which
+  // would otherwise clip the shoulders once a bar.
+  const box = bustBox(who);
+  const boxW = box.right - box.left, boxH = box.bot - box.top;
+  const u = Math.min(iw / boxW, (ih - 3) / boxH);
+  bust({ ...who, w: u * 100,
+         x: ix + (iw - boxW * u) / 2 - box.left * u,
+         y: iy + (ih - boxH * u) / 2 - box.top * u,
+         t: g.t, sing: g.F.level });
   b.restore();
   b.restore();
 }
