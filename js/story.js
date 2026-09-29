@@ -81,7 +81,14 @@ const CAST = {
             skirt:'#1e2a4e', socks:'#1e2a4e', shoes:'#4a3428',
             collar:'#ffffff', eye:'#3a7ad8', shine:'#6a5a50', blush:1 }
 };
+// 每位角色的 id 對上 data/cast.js 的 T-pose 立繪，px.js 以此挑選圖像人偶
+for (const k in CAST) CAST[k].id = k;
 const FENG = CAST.feng, TU = CAST.tu;
+
+/* 舞步：`dance` 取 js/puppet.js 的 MOVES（bounce、clap、point、chuuni、
+   wave、step、jump、heart、cheer、bow…），或 'routine' 跳完整段十六小節
+   的編舞；`di` 是舞者編號，決定鏡像與輪唱錯拍。手繪賽璐璐模式下這兩個
+   欄位會被忽略，照舊用 `pose`。 */
 
 const S = {};   /* the nine stories */
 
@@ -122,7 +129,8 @@ S.s023 = {
       F.figure({ x: g.cx - fh * .42, y: fy, h: fh, t: g.t, sing, ...FENG,
                  pose: s.id === 'lines' ? 'point' : 'idle', shadowBack: P.bg0, shadowFront: P.bg1 });
       F.figure({ x: g.cx + fh * .42, y: fy, h: fh, t: g.t, sing, ph: 1.7, ...TU,
-                 pose: s.id === 'final' ? 'raise' : 'idle', shadowBack: P.bg0, shadowFront: P.bg1 });
+                 pose: s.id === 'final' ? 'raise' : 'idle', dance: s.id === 'final' ? 'cheer' : undefined,
+                 shadowBack: P.bg0, shadowFront: P.bg1 });
     }
     // the blueprint on the desk, with lines crawling out of it
     const dy = Math.round(g.fy - BH * .08);
@@ -182,16 +190,34 @@ S.s024 = {
   scene(g, SC) { SC.stage(g, {}); },
   front(g, F) {
     const P = g.P, s = g.shot, BW = g.BW, BH = g.BH;
-    const fy = g.fy, fh = Math.round(BH * .46);
+    // portrait: the dialog sits over the upper stage, so the line-up shrinks
+    // to fit between it and the floor
+    const fy = g.fy, fh = Math.round(BH * (g.port ? .34 : .46));
     const sing = g.F.level;
     if (s.id !== 'empty') {
-      F.figure({ x: g.cx - fh * .4, y: fy, h: fh, t: g.t, sing, ...FENG,
+      // once the show is live the pair dance; on the wide shots (no close-up
+      // eating the left of the stage) 鯨魚娘 and 咕咕嘎嘎 join the line
+      const live = ['band', 'lights', 'neon', 'chorus', 'outro'].indexOf(s.id) >= 0;
+      const guests = live && !s.bust;
+      const n = guests ? 4 : 2, gap = Math.min(fh * .8, g.sw / n);
+      const at = i => Math.round(g.cx + (i - (n - 1) / 2) * gap);
+      const lead = s.id === 'chorus' || s.id === 'outro' ? 'routine' : s.id === 'lights' ? 'clap' : 'bounce';
+      if (guests) {
+        F.figure({ x: at(0), y: fy, h: fh * .9, t: g.t, sing, ph: 2, ...CAST.whale,
+                   dance: s.id === 'lights' ? 'wave' : 'routine', di: 2, shadowBack: P.bg0, shadowFront: P.bg1 });
+        F.figure({ x: at(3), y: fy, h: fh * .84, t: g.t, sing, ph: 3, ...CAST.gugu,
+                   dance: s.id === 'lights' ? 'wave' : 'routine', di: 3, shadowBack: P.bg0, shadowFront: P.bg1 });
+      }
+      const fx = guests ? at(1) : Math.round(g.cx - fh * .4), tx = guests ? at(2) : g.cx;
+      F.figure({ x: fx, y: fy, h: fh, t: g.t, sing, ...FENG,
                  pose: s.id === 'chorus' || s.id === 'lights' ? 'raise' : 'idle',
+                 dance: live ? lead : undefined, di: 0,
                  shadowBack: P.bg0, shadowFront: P.bg1 });
-      F.figure({ x: g.cx, y: fy, h: fh * .96, t: g.t, sing, ph: 1.2, ...TU,
+      F.figure({ x: tx, y: fy, h: fh * .96, t: g.t, sing, ph: 1.2, ...TU,
+                 dance: live ? 'bounce' : undefined, di: 1,
                  shadowBack: P.bg0, shadowFront: P.bg1 });
       // the guitar, strummed on the beat
-      const gx = g.cx + fh * .16, gy = fy - fh * .38;
+      const gx = tx + fh * .16, gy = fy - fh * .38;
       F.disc(gx, gy, fh * .1, '#c8632e');
       F.fill(gx + fh * .06, gy - fh * .2, fh * .03, fh * .2, '#3a2418');
       F.disc(gx, gy, fh * .03, '#3a2418');
@@ -262,7 +288,8 @@ S.s026 = {
       // 喵白白 sits behind, smaller, as the silent second cat
       if (s.id === 'pilgrim' || s.id === 'shed')
         F.figure({ x: g.cx + BH * .3, y: dy + BH * .05, h: BH * .3, t: g.t, sing: 0, ...CAST.baibai,
-                   ph: 2.1, shadowBack: P.bg0, shadowFront: P.bg1 });
+                   ph: 2.1, dance: s.id === 'pilgrim' ? 'bow' : undefined,
+                   shadowBack: P.bg0, shadowFront: P.bg1 });
     }
     // kneeling humans
     if (s.id === 'kneel' || s.id === 'pilgrim' || s.id === 'price') {
@@ -329,6 +356,8 @@ S.s027 = {
     if (s.id !== 'title') {
       F.figure({ x: g.cx, y: fy, h: fh, t: g.t, sing: g.F.level,
                  ...FENG, ...suits, pose: stage >= 3 ? 'raise' : 'idle',
+                 dance: s.id === 'slot' ? 'bounce' : s.id === 'found' ? 'point'
+                      : stage >= 4 ? 'chuuni' : stage >= 3 ? 'cheer' : undefined,
                  shadowBack: P.sky, shadowFront: P.bg1 });
     }
     if (s.id === 'title') {
@@ -507,7 +536,7 @@ S.s029 = {
       const a = s.side < 0 ? FENG : TU, bpal = s.side < 0 ? BRIDE1 : BRIDE2;
       F.figure({ x: g.cx - fh * .45, y: fy, h: fh, t: g.t, sing, ...a, blush: 1, shadowBack: P.bg0, shadowFront: P.bg1 });
       F.figure({ x: g.cx + fh * .45, y: fy, h: fh, t: g.t, sing, ph: .9, ...bpal, tail: 1, blush: 1,
-                 shadowBack: P.bg0, shadowFront: P.bg1 });
+                 dance: 'heart', shadowBack: P.bg0, shadowFront: P.bg1 });
       const p = easeOut(clamp(g.shotP * 2, 0, 1));
       const y = fy - fh * .45;
       F.fill(BW * .36, y, (BW * .22) * p, 1, P.acc);
@@ -516,9 +545,11 @@ S.s029 = {
     if (s.id === 'split') {
       // the split shot is the one that wants the whole width: the two lanes
       // run under the dialog, which sits well above the cast
-      F.fill(BW * .5, BH * .58, 1, BH * .24, P.bg2);
+      F.fill(g.port ? BW * .5 : g.cx, BH * .58, 1, BH * .24, P.bg2);
       for (const sd of [-1, 1]) {
-        const cx = BW * (sd < 0 ? .25 : .75);
+        // each lane takes half of the stage, not half of the screen: in
+        // landscape the right half of the screen belongs to the dialog
+        const cx = g.port ? BW * (sd < 0 ? .25 : .75) : g.cx + sd * g.sw / 4;
         const sy = BH * .83;
         F.figure({ x: cx - fh * .2, y: sy, h: fh * .95, t: g.t, sing, ...(sd < 0 ? FENG : TU),
                    ph: sd, blush: 1, shadowBack: P.bg0, shadowFront: P.bg1 });
@@ -532,8 +563,9 @@ S.s029 = {
       const n = 4;
       for (let i = 0; i < n; i++) {
         const cols = [FENG, BRIDE1, TU, BRIDE2][i];
-        F.figure({ x: BW * (.22 + i * .19), y: fy, h: fh * .88, t: g.t, sing, ph: i, ...cols,
-                   blush: 1, tail: i % 2, shadowBack: P.bg0, shadowFront: P.bg1 });
+        F.figure({ x: g.cx + (i - 1.5) * Math.min(fh * .6, g.sw / n), y: fy, h: fh * .88, t: g.t, sing, ph: i, ...cols,
+                   blush: 1, tail: i % 2, dance: s.id === 'feast' ? 'routine' : 'walk', di: i,
+                   shadowBack: P.bg0, shadowFront: P.bg1 });
       }
       if (s.id === 'feast') {
         F.fallers(g, 'confetti', 1);
@@ -576,6 +608,8 @@ S.s062 = {
     ][s.stage];
     F.figure({ x: g.cx, y: fy, h: fh, t: g.t, sing: g.F.level, ...FENG, ...suits,
                pose: s.id === 'final' ? 'raise' : 'idle',
+               dance: { level: g.shotP < .4 ? 'jump' : 'bounce', combo: 'step', neon: 'wave',
+                        final: 'routine', vs: 'chuuni' }[s.id],
                shine: s.stage === 2 ? P.warm : '#ffffff',
                shadowBack: P.bg0, shadowFront: P.bg1 });
     // the level bar, right across the top
@@ -734,6 +768,7 @@ S.s102 = {
       for (let i = 0; i < 4; i++) {
         const x = BW * (i < 2 ? .13 + i * .13 : .61 + (i - 2) * .13);
         F.figure({ x, y: ty + BH * .02, h: fh, t: g.t, sing, ph: i, ...cast[i],
+                   dance: s.id === 'photo' ? (g.shotP > .55 ? 'heart' : 'cheer') : 'clap', di: i,
                    shadowBack: P.bg0, shadowFront: P.bg1 });
       }
     }
@@ -757,8 +792,8 @@ S.__default = d => ({
   shots: [{ t: 0, id: 'x' }],
   scene(g, SC) { SC.stage(g, {}); },
   front(g, F) {
-    F.figure({ x: g.g.cx, y: g.BH * .78, h: g.BH * .3, t: g.t, sing: g.F.level, ...FENG,
-               shadowBack: g.P.bg0, shadowFront: g.P.bg1 });
+    F.figure({ x: g.cx, y: g.BH * .78, h: g.BH * .3, t: g.t, sing: g.F.level, ...FENG,
+               dance: 'routine', shadowBack: g.P.bg0, shadowFront: g.P.bg1 });
   }
 });
 

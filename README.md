@@ -17,6 +17,13 @@
 * **賽璐璐人物**：平塗底色 + 一階硬陰影 + 黑描邊，會眨眼、會跟著人聲開合嘴巴。
   八位班底（鯨魚娘、咕咕嘎嘎、鋒兄、塗哥、喵布布、喵白白、牙妹、魚妹）集中在
   `js/story.js` 的角色表，改一處全部的歌跟著換。
+* **T-pose 立繪人偶**：參考 [INSIDE IDENTITY](https://github.com/goldshoot0720/INSIDEIDENTITY)，
+  八位班底的 T-pose 設定圖（`art/cast/`）切成身體／手臂兩層，綁到 12 根骨骼，
+  用 WebGL2 做 2D 蒙皮變形；再以緩衝區解析度、硬邊透明、Bayer 網點量化與黑描邊
+  畫回畫面，留在像素風裡。沒有 WebGL2 時自動退回手繪賽璐璐人物（`C` 可手動切換）。
+* **舞步**：彈跳、頭頂拍手、指天、中二病 pose、波浪手、踏步、跳躍、比心、歡呼、
+  鞠躬、走路、躺平，外加十六小節的完整編舞（含鏡像與輪唱錯拍），全部踩著烘焙好的
+  節拍走。每一鏡用 `dance:` 指定，`L` 開角色表看八個人一起跳。
 * **故事分鏡**：每首歌 7～12 個分鏡，時間直接對著歌詞與段落走，不是隨機循環的特效。
 * **DOS 對話視窗**：歌詞以 `IN：` / `OUT：` 逐字打字出現，兩支儀表每首歌名目不同。
 * **字幕以可讀為優先**：實心底板、單色、不描邊。
@@ -30,7 +37,8 @@
 | `空白` | 播放 / 暫停 | | `S` | 選歌 |
 | `←` `→` | 倒退 / 快進 10 秒 | | `N` `P` | 下一首 / 上一首 |
 | `0`–`9` | 跳到 0%–90% | | `Q` | 像素粗細 |
-| `F` | 全螢幕 | | | |
+| `F` | 全螢幕 | | `C` | 立繪人偶／手繪賽璐璐 |
+| `L` | 角色表（八人齊跳） | | | |
 
 ## 本機執行
 
@@ -47,12 +55,16 @@
 ```
 index.html            主頁面（UI / 樣式）
 js/px.js              像素引擎：緩衝區、網點、賽璐璐人物、對話視窗、播放器
+js/puppet.js          T-pose 人偶：WebGL2 蒙皮、骨架、舞步（MOVES / ROUTINE）
 js/story.js           九首歌的世界觀、色盤、角色表與分鏡
+art/cast/<id>.jpg     八位班底的 T-pose 設定圖
+data/cast.js          由設定圖切好的身體／手臂圖層與關節位置（data: URI）
 STORY.md              故事設定（動畫照這份生成）
 data/songs.js         歌曲目錄
 data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
+tools/build_cast.py   從 art/cast/*.jpg 產生 data/cast.js（需要 numpy、scipy、pillow）
 serve.py              支援 Range 的小型靜態伺服器
 apps/EffectsApp/      Avalonia 桌面版 + Android APP
 scripts/build-release.ps1   打包 .zip 與 .apk

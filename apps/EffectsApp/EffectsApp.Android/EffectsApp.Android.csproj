@@ -22,7 +22,9 @@
     <AndroidAsset Include="..\..\..\index.html" Link="Assets\Web\index.html" />
     <AndroidAsset Include="..\..\..\js\px.js" Link="Assets\Web\js\px.js" />
     <AndroidAsset Include="..\..\..\js\story.js" Link="Assets\Web\js\story.js" />
+    <AndroidAsset Include="..\..\..\js\puppet.js" Link="Assets\Web\js\puppet.js" />
     <AndroidAsset Include="..\..\..\data\songs.js" Link="Assets\Web\data\songs.js" />
+    <AndroidAsset Include="..\..\..\data\cast.js" Link="Assets\Web\data\cast.js" />
     <AndroidAsset Include="..\..\..\data\song\*.js" Link="Assets\Web\data\song\%(Filename)%(Extension)" />
     <AndroidAsset Include="..\..\..\audio\*.mp3" Link="Assets\Web\audio\%(Filename)%(Extension)" />
   </ItemGroup>

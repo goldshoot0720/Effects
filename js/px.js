@@ -148,7 +148,24 @@ function clipText(str, px, max) {
    Everything is layers, the way a cel is: back hair, tail, legs, skirt,
    torso, open jacket, arms, head, hair, face. Each character turns a few
    of them on. Colours come from the cast table in js/story.js. */
+/* The cel figure is the fallback now: when WebGL2 and the T-pose art in
+   data/cast.js are there, the character is the skinned picture puppet from
+   js/puppet.js instead, and `pose` / `dance` pick one of its moves. */
+const POSE_MOVE = { raise: 'raise', point: 'point2', walk: 'walk', lie: 'lie' };
+let CEL = store.get('px.cel') === '1';
 function figure(o) {
+  if (!CEL && o.id && window.MV_PUPPET && MV_PUPPET.ready(o.id)) {
+    const u = o.h / 100, x = Math.round(o.x), base = Math.round(o.y);
+    b.fillStyle = dit(o.shadowBack || '#000000', o.shadowFront || '#222222', 7);
+    b.fillRect(x - Math.round(16 * u), base - Math.round(2 * u), Math.round(32 * u), Math.round(4 * u));
+    MV_PUPPET.draw(b, {
+      id: o.id, x: o.x, y: o.y, h: o.h, t: o.t, flip: o.flip, outline: o.outline,
+      move: o.dance || POSE_MOVE[o.pose] || 'idle',
+      beat: g.beatN + (o.beatOff || 0),
+      i: o.pose === 'lie' ? (o.awake ? 1 : 0) : o.di !== undefined ? o.di : Math.round((o.ph || 0) * 3)
+    });
+    return;
+  }
   const h = o.h, u = h / 100, x = Math.round(o.x), base = Math.round(o.y);
   const U = v => Math.round(v * u);
   const t = o.t, OUT = '#140b0c';
@@ -627,7 +644,10 @@ function portrait(g, who, p) {
   text(who.name || '', bx + 3, by + 2, 7, P.ink, 'left', 700);
   b.save();
   b.beginPath(); b.rect(bx + 2, by + 11, bw2 - 4, bh2 - 13); b.clip();
-  bust({ ...who, x: bx + bw2 * .03, y: by + 13, w: bw2 * .94, t: g.t, sing: g.F.level });
+  const box = { x: bx + 2, y: by + 11, w: bw2 - 4, h: bh2 - 13 };
+  if (CEL || !who.id || !window.MV_PUPPET ||
+      !MV_PUPPET.draw(b, { id: who.id, box, t: g.t, beat: g.beatN, i: 1, move: g.F.level > .35 ? 'bounce' : 'idle' }))
+    bust({ ...who, x: bx + bw2 * .03, y: by + 13, w: bw2 * .94, t: g.t, sing: g.F.level });
   b.restore();
   b.restore();
 }
@@ -1010,7 +1030,7 @@ function shotAt(t) {
 const g = {
   ctx: b, t: 0, dt: 0, lt: 0, prog: 0, F: F, P: null, W: 0, H: 0, QUAL: 2,
   shot: null, shotIdx: 0, shotAge: 0, shotP: 0, line: null, prev: null, cx: 0, sw: 0, fy: 0,
-  lineAge: 0, lineP: 0, port: false, BW: 0, BH: 0
+  lineAge: 0, lineP: 0, port: false, BW: 0, BH: 0, beatN: 0
 };
 let lastErr = null, SHEET = false;
 
@@ -1125,7 +1145,7 @@ function paint() {
       const cx = Math.round(gap * (i + .5));
       fill(cx - gap / 2 + 1, BH * .2, gap - 2, BH * .52, i % 2 ? '#181824' : '#14141e');
       figure({ x: cx, y: Math.round(BH * .72), h: fh, t: g.t, sing: .4, ph: i * .7,
-               ...roster[i], shadowBack: '#101018', shadowFront: '#20202c' });
+               ...roster[i], dance: 'routine', di: i, shadowBack: '#101018', shadowFront: '#20202c' });
       text(roster[i].name, cx, BH * .78, 8, '#f4f7ff', 'center', 800);
     }
     text('CAST SHEET', BW / 2, BH * .08, 11, '#ffd24a', 'center', 900);
@@ -1172,6 +1192,7 @@ function frameLoop(now) {
   // the floor everything stands on, kept clear of the subtitle band
   g.fy = Math.round(BH * (port ? .7 : .74));
   g.shot = shot; g.shotIdx = si;
+  g.beatN = (t - AA.beat0) / BEAT;
   g.shotAge = t - shot.t;
   const nextT = STORY.shots[si + 1] ? STORY.shots[si + 1].t : DUR;
   g.shotP = clamp((t - shot.t) / Math.max(.4, nextT - shot.t), 0, 1);
@@ -1272,6 +1293,11 @@ $('#bQual').onclick = () => {
   $('#qName').textContent = QNAME[QUAL];
   resize();
 };
+$('#bCel').onclick = () => {
+  CEL = !CEL;
+  store.set('px.cel', CEL ? '1' : '0');
+  $('#celName').textContent = CEL ? '手繪' : '立繪';
+};
 $('#bFull').onclick = () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen().catch(() => { });
@@ -1297,6 +1323,8 @@ addEventListener('keydown', e => {
   else if (k === 'p') loadSong(songIdx - 1, true);
   else if (k === 'q') $('#bQual').click();
   else if (k === 'f') $('#bFull').click();
+  else if (k === 'c') $('#bCel').click();
+  else if (k === 'l') SHEET = !SHEET;
   else if (k === 'escape' && listOpen() && SONG) hideList();
   else if (/^[0-9]$/.test(k)) seek(DUR * (+k) / 10);
 });
@@ -1307,12 +1335,15 @@ window.__px = {
                   bw: BW, bh: BH, sc: SC }),
   load: (i, t) => { loadSong(i, false); if (t !== undefined) setTimeout(() => seek(t), 400); },
   sheet: on => { SHEET = !!on; },
+  cel: on => { CEL = !!on; },
   seek, play, pause, shots: () => STORY && STORY.shots.map(s => s.t)
 };
 
 buildCards();
 resize();
 $('#qName').textContent = QNAME[QUAL];
+$('#celName').textContent = CEL ? '手繪' : '立繪';
+if (window.MV_PUPPET) MV_PUPPET.preload();
 const wanted = CAT.findIndex(s => s.id === store.get('px.song'));
 loadSong(wanted >= 0 ? wanted : 0, false);
 requestAnimationFrame(t => { last = t / 1000; requestAnimationFrame(frameLoop); });
