@@ -1074,17 +1074,20 @@ function paint() {
     text(chars[i], bx + bw2 / 2, by + 4 + i * (fs + 2), fs, P.ink, 'center', 800);
 
   /* ---- the terminal window: IN / OUT ---- */
-  // portrait has no room for a tall window beside the stage, so it sits
-  // under the loading bar and drops the IN line to keep the gauges clear
+  // Keep the entire window (including its shadow) above the slam band.
+  // Size it to the visible rows; on short screens omit IN rather than
+  // squeezing the lyrics into the gauges.
+  const fsz = Math.max(7, Math.min(10, Math.round(BW * .024)));
   const ww = Math.round(port ? BW - 10 : BW * .4);
   const wx = port ? 5 : Math.round(BW - ww - bw2 - 9);
-  const wy = Math.round(port ? BH * .13 : BH * .14);
-  const wh = Math.round(port ? BH * .21 : BH * .42);
+  const wy = Math.round(port ? BH * .13 : 4);
+  const maxH = Math.round(BH * .42) - 8 - wy;
+  const showIn = !!g.prev && !port && 13 + (fsz + 4) * 2 + 25 <= maxH;
+  const wh = 13 + (fsz + 4) * (showIn ? 2 : 1) + 25;
   win(P, wx, wy, ww, wh, S.exe);
   const pad = 5, tx = wx + pad, tw = ww - pad * 2;
   let ty = wy + 13;
-  const fsz = Math.max(7, Math.min(10, Math.round(BW * .024)));
-  if (g.prev && !port) {
+  if (showIn) {
     text('IN ：', tx, ty, fsz, P.lit, 'left', 700);
     text(clipText(g.prev.text, fsz, tw - 24), tx + 24, ty, fsz, P.lit, 'left', 700);
     ty += fsz + 4;
