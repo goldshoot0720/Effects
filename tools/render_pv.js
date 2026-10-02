@@ -10,7 +10,7 @@
 
      node tools/render_pv.js                    九首全部
      node tools/render_pv.js s023 s101          只做這幾首
-     node tools/render_pv.js --fps 60 --out artifacts/pv
+     node tools/render_pv.js --fps 60 --jobs 2 --out artifacts/pv   （--jobs：同時渲染幾首）
      node tools/render_pv.js --preview s023     只輸出片頭與副歌的 PNG 檢查用
    ===================================================================== */
 'use strict';
@@ -32,7 +32,8 @@ function loadPlaywright() {
 }
 
 function args() {
-  const o = { fps: 30, crf: 19, out: path.join(ROOT, 'artifacts', 'pv'), ids: [], preview: false, batch: 6 };
+  const o = { fps: 30, crf: 19, out: path.join(ROOT, 'artifacts', 'pv'), ids: [], preview: false, batch: 6,
+              jobs: Math.max(1, Math.min(4, require('os').cpus().length - 1)) };
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
     const k = a[i];
@@ -40,6 +41,7 @@ function args() {
     else if (k === '--crf') o.crf = +a[++i];
     else if (k === '--out') o.out = path.resolve(a[++i]);
     else if (k === '--preview') o.preview = true;
+    else if (k === '--jobs') o.jobs = Math.max(1, +a[++i]);
     else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]); process.exit(0); }
     else o.ids.push(k);
   }
@@ -67,11 +69,11 @@ const write = (stream, buf) => new Promise(ok => stream.write(buf) ? ok() : stre
 async function openSong(browser, id) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   page.on('pageerror', e => console.warn('  [page]', e.message));
-  page.on('console', m => { if (m.type() === 'warning' || m.type() === 'error') console.warn('  [console]', m.text()); });
+  page.on('console', m => { if (m.type() === 'error') console.warn('  [console]', m.text()); });
   await page.goto(pathToFileURL(path.join(ROOT, 'pv.html')).href + '?song=' + id + '&render');
   await page.waitForFunction(() => window.__pv && window.__pv.info && (() => { try { return window.__pv.info().id; } catch (e) { return false; } })(),
                              null, { timeout: 30000 });
-  // the T-pose puppets decode their art asynchronously; fall back to the cel figures if WebGL2 never comes up
+  // the T-pose puppets decode their art asynchronously and need WebGL2
   const ok = await page.waitForFunction(() => window.__pv.ready(), null, { timeout: 30000 }).then(() => true, () => false);
   if (!ok) throw new Error('立繪人偶沒有就緒（需要 WebGL2）');
   await page.evaluate(() => document.fonts.ready);
@@ -97,7 +99,7 @@ async function preview(page, info, o, base) {
   }
 }
 
-async function render(page, info, o, file, thumb) {
+async function render(page, info, o, file, thumb, tag) {
   const total = Math.ceil(info.length * o.fps);
   const f = ffmpeg([
     '-y', '-loglevel', 'error',
@@ -123,12 +125,38 @@ async function render(page, info, o, file, thumb) {
     if (Date.now() - last > 15000 || k + n >= total) {
       last = Date.now();
       const el = (Date.now() - t0) / 1000, done = (k + n) / total;
-      console.log(`  ${(done * 100).toFixed(1).padStart(5)}%  ${clock((k + n) / o.fps)} / ${clock(total / o.fps)}` +
+      console.log(`  ${tag} ${(done * 100).toFixed(1).padStart(5)}%  ${clock((k + n) / o.fps)} / ${clock(total / o.fps)}` +
                   `  ${((k + n) / el).toFixed(1)} fps  剩 ${clock(el / done - el)}`);
     }
   }
   f.p.stdin.end();
   await f.done;
+}
+
+// GPU compositing off: without a real GPU, the 2D canvas otherwise rasterises
+// through SwiftShader and every read-back costs a second. WebGL (the puppets)
+// still runs on SwiftShader.
+const CHROME_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+                     '--disable-gpu-compositing', '--allow-file-access-from-files', '--mute-audio'];
+
+async function one(chromium, s, cat, o) {
+  const no = String(cat.indexOf(s) + 1).padStart(2, '0');
+  const base = path.join(o.out, `PV${no}_${safe(s.title)}`);
+  const tag = `[${no} ${s.title}]`;
+  const browser = await chromium.launch({ args: CHROME_ARGS });
+  try {
+    const page = await openSong(browser, s.id);
+    const info = await page.evaluate(() => window.__pv.info());
+    console.log(`▶ ${tag} ${clock(info.length)}`);
+    if (o.preview) await preview(page, info, o, base);
+    else {
+      await render(page, info, o, base + '.mp4', base + '.jpg', tag);
+      const mb = fs.statSync(base + '.mp4').size / 1048576;
+      console.log(`✔ ${tag} → ${path.relative(ROOT, base)}.mp4  ${clock(info.length)}  ${mb.toFixed(1)} MB`);
+    }
+  } finally {
+    await browser.close();
+  }
 }
 
 (async () => {
@@ -137,28 +165,16 @@ async function render(page, info, o, file, thumb) {
   const want = o.ids.length ? cat.filter(s => o.ids.includes(s.id)) : cat;
   if (!want.length) { console.error('沒有這些歌：', o.ids.join(' ')); process.exit(1); }
   fs.mkdirSync(o.out, { recursive: true });
-
   const { chromium } = loadPlaywright();
-  const browser = await chromium.launch({
-    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
-           '--allow-file-access-from-files', '--autoplay-policy=no-user-gesture-required', '--mute-audio']
-  });
-  try {
-    for (const s of want) {
-      const no = String(cat.indexOf(s) + 1).padStart(2, '0');
-      const base = path.join(o.out, `PV${no}_${safe(s.title)}`);
-      console.log(`▶ ${no} ${s.title}`);
-      const page = await openSong(browser, s.id);
-      const info = await page.evaluate(() => window.__pv.info());
-      if (o.preview) await preview(page, info, o, base);
-      else {
-        await render(page, info, o, base + '.mp4', base + '.jpg');
-        const mb = fs.statSync(base + '.mp4').size / 1048576;
-        console.log(`  → ${path.relative(ROOT, base)}.mp4  ${clock(info.length)}  ${mb.toFixed(1)} MB`);
-      }
-      await page.close();
+  // longest songs first, so the workers finish together
+  const queue = want.slice().sort((a, b) => b.dur - a.dur);
+  let failed = 0;
+  const worker = async () => {
+    for (let s; (s = queue.shift());) {
+      try { await one(chromium, s, cat, o); }
+      catch (e) { failed++; console.error(`✘ [${s.id} ${s.title}]`, e.message); }
     }
-  } finally {
-    await browser.close();
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(o.jobs, want.length) }, worker));
+  if (failed) process.exit(1);
 })().catch(e => { console.error(e); process.exit(1); });

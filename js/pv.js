@@ -22,7 +22,9 @@
 const W = 1920, H = 1080, TAU = Math.PI * 2;
 const HEAD = 3.4, TAIL = 8.5, CASTT = 3.8;
 const cvs = document.getElementById('pv');
-const ctx = cvs.getContext('2d');
+// CPU raster: on a machine without a GPU, Skia on the CPU is far faster than
+// a software-emulated GPU canvas, and frames are read back every time
+const ctx = cvs.getContext('2d', { willReadFrequently: true });
 const CAT = window.MV_SONGS || [];
 const FONT = '"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei","PingFang TC","WenQuanYi Zen Hei",sans-serif';
 const MONO = '"Noto Sans Mono CJK TC","DejaVu Sans Mono",Menlo,Consolas,monospace';
@@ -125,7 +127,7 @@ const GRAIN = [0, 1, 2].map(k => {
 });
 // an offscreen layer the size of the frame (the galaxy twin)
 const LAYER = document.createElement('canvas'); LAYER.width = W; LAYER.height = H;
-const lctx = LAYER.getContext('2d');
+const lctx = LAYER.getContext('2d', { willReadFrequently: true });
 const STARS = document.createElement('canvas'); STARS.width = W; STARS.height = H;
 (function () {
   const x = STARS.getContext('2d');
@@ -695,8 +697,10 @@ function titleCard(T) {
   }
   lineup(LEAD, T, { y: H * 1.06, h: H * .62, move: i => ['cheer', 'wave', 'heart', 'clap'][i % 4], flipLast: true, stagger: true });
   // the logo
-  const long = [...SONG.title].length > 10;
-  const y = candy(SONG.title, W / 2, H * (long ? .24 : .28), long ? 120 : 168, W * .88, .15, T, 0, { maxRows: 2, step: .06, hop: true });
+  const cs = [...SONG.title], long = cs.length > 10;
+  // a long title with nowhere to break is split into two even halves
+  const title = long && !/\s/.test(SONG.title) ? cs.slice(0, Math.ceil(cs.length / 2)).join('') + ' ' + cs.slice(Math.ceil(cs.length / 2)).join('') : SONG.title;
+  const y = candy(title, W / 2, H * (long ? .24 : .28), long ? 120 : 168, W * .88, .15, T, 0, { maxRows: 2, step: .06, hop: true });
   // capsule labels
   const p = easeBack(clamp((T - .9) / .4, 0, 1));
   if (p > 0) {
@@ -824,6 +828,7 @@ window.__pv = {
   info: () => ({ id: SONG.id, title: SONG.title, cast: SONG.cast, tagline: SONG.tagline, dur: DUR, head: HEAD,
                  tail: TAIL, length: HEAD + DUR + TAIL, w: W, h: H, gl: MV_PUPPET.ok(), segs: SEGS.map(s => s.mode + ':' + s.t0.toFixed(1)) }),
   // n frames from video time T0 as JPEG base64 strings
+  frame: (T, dt) => frame(T, dt),
   grab(T0, n, fps, q) {
     const out = [];
     for (let k = 0; k < n; k++) {
