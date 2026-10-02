@@ -24,7 +24,21 @@ const HEAD = 3.4, TAIL = 8.5, CASTT = 3.8;
 const cvs = document.getElementById('pv');
 // CPU raster: on a machine without a GPU, Skia on the CPU is far faster than
 // a software-emulated GPU canvas, and frames are read back every time
-const ctx = cvs.getContext('2d', { willReadFrequently: true });
+const MAIN = cvs.getContext('2d', { willReadFrequently: true });
+let ctx = MAIN;
+// draw something once into its own canvas and keep it: the static layers of
+// each background are baked, so a frame only paints what moves
+const BAKED = new Map();
+function bake(key, fn, w, h) {
+  let c = BAKED.get(key);
+  if (c) return c;
+  c = document.createElement('canvas'); c.width = w || W; c.height = h || H;
+  const keep = ctx;
+  ctx = c.getContext('2d');
+  try { fn(); } finally { ctx = keep; }
+  BAKED.set(key, c);
+  return c;
+}
 const CAT = window.MV_SONGS || [];
 const FONT = '"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei","PingFang TC","WenQuanYi Zen Hei",sans-serif';
 const MONO = '"Noto Sans Mono CJK TC","DejaVu Sans Mono",Menlo,Consolas,monospace';
@@ -114,20 +128,12 @@ function buildSegs() {
 function segAt(t) { let r = SEGS[0]; for (const s of SEGS) if (t >= s.t0) r = s; return r; }
 
 /* ------------------------------ assets ------------------------------ */
-// film grain, a few frames of it, cycled
-const GRAIN = [0, 1, 2].map(k => {
-  const c = document.createElement('canvas'); c.width = c.height = 256;
-  const x = c.getContext('2d'), d = x.createImageData(256, 256);
-  for (let i = 0; i < d.data.length; i += 4) {
-    const v = hash(i * .37 + k * 91.7) * 255;
-    d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255;
-  }
-  x.putImageData(d, 0, 0);
-  return c;
-});
 // an offscreen layer the size of the frame (the galaxy twin)
 const LAYER = document.createElement('canvas'); LAYER.width = W; LAYER.height = H;
 const lctx = LAYER.getContext('2d', { willReadFrequently: true });
+// a small copy of it, scaled back up, is the soft glow around the twin
+const HALO = document.createElement('canvas'); HALO.width = 240; HALO.height = 135;
+const hctx = HALO.getContext('2d');
 const STARS = document.createElement('canvas'); STARS.width = W; STARS.height = H;
 (function () {
   const x = STARS.getContext('2d');
@@ -144,36 +150,38 @@ const MOVES = ['wave', 'point', 'heart', 'clap', 'cheer', 'bounce', 'chuuni', 'j
 const DANCE = ['clap', 'heart', 'cheer', 'wave', 'chuuni', 'jump', 'point', 'clap', 'cheer', 'heart'];
 function fig(c, who, o) {
   if (!who || !window.MV_PUPPET) return;
-  c.save();
-  if (o.shadow !== false) {
-    c.shadowColor = o.shadowColor || 'rgba(20,10,40,.32)';
-    c.shadowOffsetX = o.sx === undefined ? 16 : o.sx; c.shadowOffsetY = o.sy === undefined ? 12 : o.sy; c.shadowBlur = o.blur || 0;
-  }
   MV_PUPPET.draw(c, {
     id: who.id, x: o.x, y: o.y, h: o.h, t: o.t, beat: o.beat, move: o.move || 'bounce', i: o.i || 0, flip: o.flip,
-    box: o.box, smooth: true, rim: o.rim === undefined ? 7 : o.rim, outline: o.outline === undefined ? '#ffffff' : o.outline, tint: o.tint
+    box: o.box, smooth: true, rim: o.rim === undefined ? 7 : o.rim, outline: o.outline === undefined ? '#ffffff' : o.outline, tint: o.tint,
+    shadow: o.shadow === false ? null : { x: o.sx === undefined ? 16 : o.sx, y: o.sy === undefined ? 12 : o.sy, color: o.shadowColor || 'rgba(20,10,40,.32)' }
   });
-  c.restore();
 }
 // the 花束 twin: the same dancer, filled with a galaxy
 function galaxyTwin(who, o, t) {
-  lctx.clearRect(0, 0, W, H);
+  const bx = Math.max(0, Math.floor(o.x - o.h * .8)), by = Math.max(0, Math.floor(o.y - o.h * 1.15));
+  const bw = Math.min(W - bx, Math.ceil(o.h * 1.6)), bh = Math.min(H - by, Math.ceil(o.h * 1.2));
+  lctx.clearRect(bx, by, bw, bh);
   fig(lctx, who, { ...o, tint: '#ffffff', outline: false, shadow: false });
   lctx.save();
   lctx.globalCompositeOperation = 'source-in';
   const g = lctx.createLinearGradient(0, o.y - o.h, 0, o.y);
   g.addColorStop(0, mix(PAL.acc2, '#1a1050', .3)); g.addColorStop(.5, mix(PAL.acc, '#2a1a70', .45)); g.addColorStop(1, '#0d0a2a');
-  lctx.fillStyle = g; lctx.fillRect(0, 0, W, H);
+  lctx.fillStyle = g; lctx.fillRect(bx, by, bw, bh);
   lctx.globalCompositeOperation = 'source-atop';
-  lctx.drawImage(STARS, -(t * 12 % W), 0); lctx.drawImage(STARS, W - (t * 12 % W), 0);
+  const sx = (bx + t * 12) % W;
+  lctx.drawImage(STARS, sx, by, Math.min(bw, W - sx), bh, bx, by, Math.min(bw, W - sx), bh);
+  if (bw > W - sx) lctx.drawImage(STARS, 0, by, bw - (W - sx), bh, bx + (W - sx), by, bw - (W - sx), bh);
   const n = lctx.createRadialGradient(o.x, o.y - o.h * .6, 10, o.x, o.y - o.h * .6, o.h * .5);
   n.addColorStop(0, rgba(PAL.lamp, .45)); n.addColorStop(1, rgba(PAL.lamp, 0));
-  lctx.fillStyle = n; lctx.fillRect(0, 0, W, H);
+  lctx.fillStyle = n; lctx.fillRect(bx, by, bw, bh);
   lctx.restore();
+  hctx.clearRect(0, 0, 240, 135);
+  hctx.drawImage(LAYER, 0, 0, W, H, 0, 0, 240, 135);
   ctx.save();
-  ctx.shadowColor = rgba(PAL.acc2, .8); ctx.shadowBlur = 40;
-  ctx.globalAlpha = .92;
-  ctx.drawImage(LAYER, 0, 0);
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .55; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(HALO, -W * .01, -H * .01, W * 1.02, H * 1.02);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = .92;
+  ctx.drawImage(LAYER, bx, by, bw, bh, bx, by, bw, bh);
   ctx.restore();
 }
 function lineup(list, t, o) {
@@ -215,9 +223,23 @@ function petals(t, n, cols) {
   }
 }
 function bgNight(t) {
-  sky(t, mix(PAL.sky, '#05040f', .3), mix(PAL.bg2, PAL.acc2, .25));
-  glow(W * .3, H * .4, 700, PAL.acc, .18);
-  glow(W * .75, H * .25, 600, PAL.acc2, .2);
+  ctx.drawImage(bake('night', () => {
+    sky(0, mix(PAL.sky, '#05040f', .3), mix(PAL.bg2, PAL.acc2, .25));
+    glow(W * .3, H * .4, 700, PAL.acc, .18);
+    glow(W * .75, H * .25, 600, PAL.acc2, .2);
+    // the moon, a fat crescent with a halo
+    const mx = W * .83, my = H * .2;
+    glow(mx, my, 260, PAL.lamp, .35);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mx, my, 78, 0, TAU); ctx.clip();
+    ctx.beginPath(); ctx.rect(mx - 100, my - 100, 200, 200); ctx.arc(mx + 34, my - 18, 70, 0, TAU, true);
+    ctx.fillStyle = mix(PAL.lamp, '#fffbe8', .5); ctx.fill();
+    ctx.restore();
+    // a low hill of light the dancers stand on
+    const fl = ctx.createLinearGradient(0, H * .82, 0, H);
+    fl.addColorStop(0, rgba(PAL.bg0, 0)); fl.addColorStop(1, rgba(PAL.bg0, .9));
+    ctx.fillStyle = fl; ctx.fillRect(0, H * .82, W, H * .18);
+  }), 0, 0);
   ctx.save(); ctx.globalAlpha = .9;
   ctx.drawImage(STARS, -(t * 6 % W), 0); ctx.drawImage(STARS, W - (t * 6 % W), 0);
   ctx.restore();
@@ -225,14 +247,6 @@ function bgNight(t) {
     const tw = .5 + .5 * Math.sin(t * (1.5 + hash(i) * 3) + i * 7);
     sparkle(hash(i + 50) * W, hash(i + 70) * H * .8, 6 + hash(i + 9) * 14, '#ffffff', tw * .9);
   }
-  // the moon, a fat crescent with a halo
-  const mx = W * .83, my = H * .2;
-  glow(mx, my, 260, PAL.lamp, .35);
-  ctx.save();
-  ctx.beginPath(); ctx.arc(mx, my, 78, 0, TAU); ctx.clip();
-  ctx.beginPath(); ctx.rect(mx - 100, my - 100, 200, 200); ctx.arc(mx + 34, my - 18, 70, 0, TAU, true);
-  ctx.fillStyle = mix(PAL.lamp, '#fffbe8', .5); ctx.fill();
-  ctx.restore();
   // a shooting star every few seconds
   const ss = (t % 6.5) / .9;
   if (ss < 1) {
@@ -241,37 +255,31 @@ function bgNight(t) {
     g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,.9)');
     ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sx - 260, sy - 115); ctx.lineTo(sx, sy); ctx.stroke();
   }
-  // a low hill of light the dancers stand on
-  const fl = ctx.createLinearGradient(0, H * .82, 0, H);
-  fl.addColorStop(0, rgba(PAL.bg0, 0)); fl.addColorStop(1, rgba(PAL.bg0, .9));
-  ctx.fillStyle = fl; ctx.fillRect(0, H * .82, W, H * .18);
   petals(t, 22, ['#ffffff', mix(PAL.acc2, '#ffffff', .5), mix(PAL.acc, '#ffffff', .55)]);
 }
 function bgPaper(t, seg) {
-  sky(t, mix(PAL.ink, '#ffffff', .55), mix(PAL.acc2, '#ffffff', .55));
+  ctx.drawImage(bake('paper', () => {
+    sky(0, mix(PAL.ink, '#ffffff', .55), mix(PAL.acc2, '#ffffff', .55));
+    ctx.fillStyle = rgba(PAL.acc, .22);
+    for (let y = 0; y < 330; y += 22) for (let x = 0; x < 330; x += 22) {
+      const r = Math.max(0, 7 - Math.hypot(x, y) / 52);
+      if (r > .4) { ctx.beginPath(); ctx.arc(W - x - 10, y + 10, r, 0, TAU); ctx.arc(x + 10, H - y - 10, r, 0, TAU); ctx.fill(); }
+    }
+  }), 0, 0);
   // huge outlined banner type drifting behind everything
-  ctx.save();
-  ctx.translate(W * .5, H * .5); ctx.rotate(-.12);
-  font(420); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = 4; ctx.strokeStyle = rgba(PAL.acc, .16);
-  const chars = [...BANNER];
-  const off = (t * 40) % 480;
-  for (let r = -2; r <= 2; r++) {
-    const row = chars.join('');
-    ctx.strokeText(row, (r % 2 ? -off : off) - 240, r * 470);
-  }
-  ctx.restore();
+  const type = bake('paperType', () => {
+    ctx.translate(W * .5 + 120, H * .5 + 120); ctx.rotate(-.12);
+    font(420); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = rgba(PAL.acc, .16);
+    for (let r = -2; r <= 2; r++) ctx.strokeText(BANNER, (r % 2 ? -1 : 1) * 120 - 240, r * 470);
+  }, W + 240, H + 240);
+  ctx.drawImage(type, -120 + Math.sin(t * .25) * 110, -120 + Math.cos(t * .2) * 40);
   // diagonal stripes in a band, and halftone dots in two corners
   ctx.save();
   ctx.beginPath(); ctx.rect(0, H * .66, W, H * .16); ctx.clip();
   ctx.fillStyle = rgba(PAL.warm, .22);
   for (let x = -H; x < W + H; x += 60) { ctx.beginPath(); ctx.moveTo(x + (t * 40) % 60, H * .66); ctx.lineTo(x + 30 + (t * 40) % 60, H * .66); ctx.lineTo(x - 130 + (t * 40) % 60, H * .82); ctx.lineTo(x - 160 + (t * 40) % 60, H * .82); ctx.fill(); }
   ctx.restore();
-  ctx.fillStyle = rgba(PAL.acc, .22);
-  for (let y = 0; y < 330; y += 22) for (let x = 0; x < 330; x += 22) {
-    const r = Math.max(0, 7 - Math.hypot(x, y) / 52);
-    if (r > .4) { ctx.beginPath(); ctx.arc(W - x - 10, y + 10, r, 0, TAU); ctx.arc(x + 10, H - y - 10, r, 0, TAU); ctx.fill(); }
-  }
   // bokeh
   for (let i = 0; i < 14; i++) {
     const x = ((hash(i) + t * .01 * (1 + hash(i + 4))) % 1) * W, y = hash(i + 8) * H;
@@ -328,11 +336,13 @@ function confetti(t, n) {
   }
 }
 function bgDesk(t) {
-  sky(t, '#fffafc', mix(PAL.acc2, '#ffffff', .62));
-  ctx.fillStyle = rgba(PAL.acc, .2);
-  for (let y = 30; y < H; y += 46) for (let x = 30 + (y / 46 % 2) * 23; x < W; x += 46) { ctx.beginPath(); ctx.arc(x, y, 2.5, 0, TAU); ctx.fill(); }
+  ctx.drawImage(bake('desk', () => {
+    sky(0, '#fffafc', mix(PAL.acc2, '#ffffff', .62));
+    ctx.fillStyle = rgba(PAL.acc, .2);
+    for (let y = 30; y < H; y += 46) for (let x = 30 + (y / 46 % 2) * 23; x < W; x += 46) { ctx.beginPath(); ctx.arc(x, y, 2.5, 0, TAU); ctx.fill(); }
+    glow(W * .2, H * .2, 500, '#ffffff', .6);
+  }), 0, 0);
   for (let i = 0; i < 12; i++) sparkle(hash(i + 40) * W, hash(i + 41) * H * .85, 10 + hash(i + 4) * 18, i % 2 ? PAL.acc : PAL.acc2, .5 + .5 * Math.sin(t * 2.4 + i));
-  glow(W * .2, H * .2, 500, '#ffffff', .6);
 }
 
 /* ------------------------------ type -------------------------------- */
@@ -569,13 +579,14 @@ function petWin(who, x, y, w, h, col, t, i, p) {
   }
   ctx.restore();
 }
+// window layouts, kept below the HUD and above the task bar
 const PETLAY = {
-  1: [[.3, .12]], 2: [[.08, .1], [.5, .26]], 3: [[.05, .08], [.35, .32], [.63, .07]],
-  4: [[.03, .06], [.28, .38], [.5, .04], [.66, .4]]
+  1: [[.3, .13]], 2: [[.08, .13], [.5, .27]], 3: [[.05, .12], [.35, .34], [.63, .11]],
+  4: [[.03, .12], [.28, .4], [.5, .1], [.66, .42]]
 };
 function petDesk(list, t, u) {
   const n = Math.min(4, list.length), lay = PETLAY[n] || PETLAY[1];
-  const w = W * (n >= 3 ? .33 : n === 2 ? .4 : .42), h = H * (n >= 3 ? .52 : n === 2 ? .6 : .66);
+  const w = W * (n >= 3 ? .33 : n === 2 ? .4 : .42), h = H * (n === 4 ? .5 : n === 3 ? .52 : n === 2 ? .6 : .66);
   const cols = [PAL.warm, PAL.acc2, PAL.acc, '#a98bff'];
   for (let i = 0; i < n; i++)
     petWin(list[i], W * lay[i][0], H * lay[i][1], w, h, mix(cols[i % 4], '#ffffff', .12), t, i, (u - .15 - i * .32) / .42);
@@ -679,7 +690,9 @@ function songFrame(t, T) {
     if (line) candy(line.text, W / 2, H * .25, 150, W * .86, line.t - .05, t, line.idx * 3, { hop: true, maxRows: 2 });
   } else if (seg.mode === 'desk') {
     bgDesk(t);
-    petDesk(LEAD.length ? LEAD : ALL.slice(0, 2), t, age);
+    // each interlude opens the windows in a different order
+    const k = seg.who % Math.max(1, LEAD.length);
+    petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
     taskbar(t, 'PETS');
     if (line) subtitle(line.text, (t - line.t) / .6, H * .86);
   }
@@ -761,15 +774,11 @@ function slash(T) {
   }
 }
 function post(T) {
-  // vignette
-  const v = ctx.createRadialGradient(W / 2, H / 2, H * .45, W / 2, H / 2, H * 1.05);
-  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,0,30,.32)');
-  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
-  // grain
-  ctx.save(); ctx.globalAlpha = .045; ctx.globalCompositeOperation = 'overlay';
-  const gr = GRAIN[Math.floor(T * 24) % 3];
-  ctx.fillStyle = ctx.createPattern(gr, 'repeat'); ctx.fillRect(0, 0, W, H);
-  ctx.restore();
+  ctx.drawImage(bake('vignette', () => {
+    const v = ctx.createRadialGradient(W / 2, H / 2, H * .45, W / 2, H / 2, H * 1.05);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,0,30,.32)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }), 0, 0);
   // a flash on the big hits
   if (F.flash > .05 && T > HEAD && T < HEAD + DUR) { ctx.fillStyle = `rgba(255,255,255,${F.flash * .1})`; ctx.fillRect(0, 0, W, H); }
 }

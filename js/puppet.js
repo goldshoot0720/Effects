@@ -508,7 +508,8 @@ const hex = c => {
         smooth, rim, tint }
    ctx: the 2D pixel buffer. Returns false when the puppet is not ready.
    smooth: soft alpha and true colour instead of the pixel look, blended;
-   rim: outline thickness in px (smooth only); tint: paint the figure flat. */
+   rim: outline thickness in px (smooth only); tint: paint the figure flat;
+   shadow: { x, y, color, blur } a drop shadow (smooth only). */
 function draw(ctx, o) {
   const pp = ready(o.id) && PUP[o.id];
   if (!pp) return false;
@@ -557,19 +558,57 @@ function draw(ctx, o) {
   gl.uniform2f(loc.uSize, W, H);
   const levels = o.levels || 6;
   gl.uniform1f(loc.uSmooth, o.smooth ? 1 : 0);
-  if (o.smooth) { gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); }
+  if (o.smooth) {
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.SCISSOR_TEST);
+    smoothOut(ctx, o, bx, by, bw2, bh2);
+    return true;
+  }
   if (o.outline !== false) {
     const oc = hex(o.outline || '#140b0c');
-    const r = o.smooth ? (o.rim || 2) : 1;
-    const ring = o.smooth ? [] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
-    if (o.smooth) for (let k = 0; k < 16; k++) ring.push([Math.cos(k / 16 * Math.PI * 2) * r, Math.sin(k / 16 * Math.PI * 2) * r]);
-    for (const d of ring) pp.draw(d, oc, levels);
+    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1]]) pp.draw(d, oc, levels);
   }
-  pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels);
-  gl.disable(gl.BLEND);
+  pp.draw([0, 0], [0, 0, 0, 0], levels);
   gl.disable(gl.SCISSOR_TEST);
   ctx.drawImage(glc, bx, by, bw2, bh2, bx, by, bw2, bh2);
   return true;
+}
+
+/* The smooth figure leaves WebGL once; its rim and drop shadow are built in
+   2D from a flat-tinted copy, stamped round the figure — much cheaper on a
+   software renderer than redrawing the mesh for every stamp. */
+const FIG = document.createElement('canvas'), SIL = document.createElement('canvas'), RIM = document.createElement('canvas');
+const fctx = FIG.getContext('2d', { willReadFrequently: true });
+const sctx = SIL.getContext('2d', { willReadFrequently: true }), rctx = RIM.getContext('2d', { willReadFrequently: true });
+function smoothOut(ctx, o, bx, by, bw, bh) {
+  if (FIG.width < bw || FIG.height < bh) { FIG.width = Math.max(FIG.width, bw); FIG.height = Math.max(FIG.height, bh); }
+  fctx.clearRect(0, 0, bw, bh);
+  fctx.drawImage(glc, bx, by, bw, bh, 0, 0, bw, bh);
+  const rim = o.outline !== false ? (o.rim || 2) : 0, sh = o.shadow;
+  if (rim || sh) {
+    // the rim is grown at half resolution: a quarter of the pixels per stamp,
+    // and a white edge does not mind being a touch soft
+    const pad = Math.ceil(rim / 2) + 2, hw = Math.ceil(bw / 2), hh = Math.ceil(bh / 2);
+    if (SIL.width < hw || SIL.height < hh) { SIL.width = Math.max(SIL.width, hw); SIL.height = Math.max(SIL.height, hh); }
+    if (RIM.width < hw + pad * 2 || RIM.height < hh + pad * 2) { RIM.width = Math.max(RIM.width, hw + pad * 2); RIM.height = Math.max(RIM.height, hh + pad * 2); }
+    sctx.globalCompositeOperation = 'copy';
+    sctx.drawImage(FIG, 0, 0, bw, bh, 0, 0, hw, hh);
+    sctx.globalCompositeOperation = 'source-in';
+    sctx.fillStyle = o.outline || '#ffffff'; sctx.fillRect(0, 0, hw, hh);
+    sctx.globalCompositeOperation = 'source-over';
+    rctx.clearRect(0, 0, hw + pad * 2, hh + pad * 2);
+    const r2 = rim / 2, n = rim ? 12 : 1;
+    for (let k = 0; k < n; k++)
+      rctx.drawImage(SIL, 0, 0, hw, hh, pad + Math.cos(k / n * Math.PI * 2) * r2, pad + Math.sin(k / n * Math.PI * 2) * r2, hw, hh);
+    ctx.save();
+    if (sh) { ctx.shadowColor = sh.color; ctx.shadowOffsetX = sh.x; ctx.shadowOffsetY = sh.y; ctx.shadowBlur = sh.blur || 0; }
+    if (!rim) ctx.globalAlpha = 0.001;   // shadow only: the silhouette itself stays hidden under the figure
+    ctx.drawImage(RIM, 0, 0, hw + pad * 2, hh + pad * 2, bx - pad * 2, by - pad * 2, (hw + pad * 2) * 2, (hh + pad * 2) * 2);
+    ctx.restore();
+  }
+  ctx.drawImage(FIG, 0, 0, bw, bh, bx, by, bw, bh);
 }
 
 return { draw, ready, preload, dancePose, mirror, blendPose, MOVES, ROUTINE,
