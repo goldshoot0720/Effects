@@ -85,7 +85,7 @@ jobs:
       - name: Install ffmpeg, CJK fonts and Chromium
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          sudo apt-get install -y ffmpeg fonts-noto-cjk fonts-noto-cjk-extra
           npm i --no-save playwright
           npx playwright install --with-deps chromium
 
@@ -105,4 +105,4 @@ jobs:
           tag_name: v${{ needs.package.outputs.version }}
           files: |
             artifacts/pv/*.mp4
-            artifacts/pv/*.png
+            artifacts/pv/*.jpg

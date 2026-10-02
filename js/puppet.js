@@ -68,11 +68,17 @@ precision mediump float;
 in vec2 vUV;
 uniform sampler2D uTex;
 uniform vec4 uTint;
-uniform float uLevels;
+uniform float uLevels, uSmooth;
 out vec4 o;
 const float BY[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
 void main() {
   vec4 c = texture(uTex, vUV);
+  // smooth: soft edges and full colour (the anime PV), premultiplied out
+  if (uSmooth > 0.5) {
+    if (c.a < 0.004) discard;
+    o = uTint.a > 0.0 ? vec4(uTint.rgb, 1.0) * c.a : c;
+    return;
+  }
   if (c.a < 0.5) discard;
   if (uTint.a > 0.0) { o = vec4(uTint.rgb, 1.0); return; }
   vec3 rgb = c.rgb / c.a;
@@ -103,7 +109,7 @@ function initGL() {
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     for (const n of ['aPos', 'aUV', 'aBone', 'aW']) loc[n] = gl.getAttribLocation(prog, n);
-    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uLevels']) loc[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uLevels', 'uSmooth']) loc[n] = gl.getUniformLocation(prog, n);
     gl.disable(gl.BLEND);
     return true;
   } catch (e) {
@@ -498,8 +504,11 @@ const hex = c => {
   return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, 1];
 };
 
-/* o: { id, x, y (feet), h, move, beat, i, t, flip, levels, outline, crop }
-   ctx: the 2D pixel buffer. Returns false when the puppet is not ready. */
+/* o: { id, x, y (feet), h, move, beat, i, t, flip, levels, outline, crop,
+        smooth, rim, tint }
+   ctx: the 2D pixel buffer. Returns false when the puppet is not ready.
+   smooth: soft alpha and true colour instead of the pixel look, blended;
+   rim: outline thickness in px (smooth only); tint: paint the figure flat. */
 function draw(ctx, o) {
   const pp = ready(o.id) && PUP[o.id];
   if (!pp) return false;
@@ -547,11 +556,17 @@ function draw(ctx, o) {
   gl.useProgram(prog);
   gl.uniform2f(loc.uSize, W, H);
   const levels = o.levels || 6;
+  gl.uniform1f(loc.uSmooth, o.smooth ? 1 : 0);
+  if (o.smooth) { gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); }
   if (o.outline !== false) {
     const oc = hex(o.outline || '#140b0c');
-    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1]]) pp.draw(d, oc, levels);
+    const r = o.smooth ? (o.rim || 2) : 1;
+    const ring = o.smooth ? [] : [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    if (o.smooth) for (let k = 0; k < 16; k++) ring.push([Math.cos(k / 16 * Math.PI * 2) * r, Math.sin(k / 16 * Math.PI * 2) * r]);
+    for (const d of ring) pp.draw(d, oc, levels);
   }
-  pp.draw([0, 0], [0, 0, 0, 0], levels);
+  pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels);
+  gl.disable(gl.BLEND);
   gl.disable(gl.SCISSOR_TEST);
   ctx.drawImage(glc, bx, by, bw2, bh2, bx, by, bw2, bh2);
   return true;

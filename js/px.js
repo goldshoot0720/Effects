@@ -51,20 +51,16 @@ let QUAL = clamp(Math.round(parseFloat(store.get('px.qual')) || 1), 0, 2);
 const QNAME = ['粗', '中', '細'];
 const BASE = [160, 224, 292];
 
-const PV = (() => { try { return new URLSearchParams(location.search).get('pv'); } catch (e) { return null; } })();
-if (PV) QUAL = 1;
 function resize() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
-  // a PV is always a 1920×1080 frame: 384×216 buffer pixels at 5×
-  W = PV ? 1920 : Math.max(2, Math.floor(innerWidth * dpr));
-  H = PV ? 1080 : Math.max(2, Math.floor(innerHeight * dpr));
+  W = Math.max(2, Math.floor(innerWidth * dpr));
+  H = Math.max(2, Math.floor(innerHeight * dpr));
   cvs.width = W; cvs.height = H;
   const sc = Math.max(2, Math.round(Math.min(W, H) / BASE[QUAL]));
   const bw = Math.ceil(W / sc), bh = Math.ceil(H / sc);
   if (bw !== BW || bh !== BH || sc !== SC) {
     BW = bw; BH = bh; SC = sc; port = BW < BH * 1.15;
     buf.width = BW; buf.height = BH;
-    if (PV) pvSize();
     patterns.clear();
   }
 }
@@ -1054,19 +1050,17 @@ function paint() {
     if (who) portrait(g, who, clamp(g.shotAge / .55, 0, 1));
   }
 
-  /* ---- chrome: the loading bar (a PV has its own corner HUD instead) ---- */
-  if (!PV) {
-    const hw = Math.round(port ? BW * .5 : BW * .26), hx = 4, hy = 4;
-    fill(hx, hy, hw, 11, P.sky);
-    frame(hx, hy, hw, 11, P.lit, 1);
-    text('P (' + S.tag + ')', hx + 3, hy + 2, 7, P.ink, 'left', 700);
-    text(Math.round(g.prog * 100) + '%', hx + hw - 3, hy + 2, 7, P.warm, 'right', 700);
-    fill(hx, hy + 12, hw, 5, P.sky);
-    frame(hx, hy + 12, hw, 5, P.bg2, 1);
-    b.fillStyle = P.acc;
-    const seg = Math.floor((hw - 2) * g.prog);
-    for (let i = 0; i < seg; i += 3) b.fillRect(hx + 1 + i, hy + 13, 2, 3);
-  }
+  /* ---- chrome: the loading bar ---- */
+  const hw = Math.round(port ? BW * .5 : BW * .26), hx = 4, hy = 4;
+  fill(hx, hy, hw, 11, P.sky);
+  frame(hx, hy, hw, 11, P.lit, 1);
+  text('P (' + S.tag + ')', hx + 3, hy + 2, 7, P.ink, 'left', 700);
+  text(Math.round(g.prog * 100) + '%', hx + hw - 3, hy + 2, 7, P.warm, 'right', 700);
+  fill(hx, hy + 12, hw, 5, P.sky);
+  frame(hx, hy + 12, hw, 5, P.bg2, 1);
+  b.fillStyle = P.acc;
+  const seg = Math.floor((hw - 2) * g.prog);
+  for (let i = 0; i < seg; i += 3) b.fillRect(hx + 1 + i, hy + 13, 2, 3);
 
   /* ---- the vertical shop banner ---- */
   const bw2 = Math.max(13, Math.round(BW * .062)), bx = BW - bw2 - 4;
@@ -1139,10 +1133,8 @@ function paint() {
       text(rows[i], BW / 2, sy + i * lh, fs2, P.ink, 'center', 900);
   }
 
-  if (PV) pvHud(g);
-
   /* ---- section stinger ---- */
-  if (!PV && g.secAge < 1.4 && ((g.t * 8 | 0) % 2 || g.secAge < .4)) {
+  if (g.secAge < 1.4 && ((g.t * 8 | 0) % 2 || g.secAge < .4)) {
     textOut('SCENE ' + String(g.shotIdx + 1).padStart(2, '0'),
             port ? BW - bw2 - 8 : BW * .5, Math.round(BH * .045), 8, P.warm, '#000',
             port ? 'right' : 'center', 800);
@@ -1184,15 +1176,7 @@ function frameLoop(now) {
   } else clock = audio.currentTime;
   clock = clamp(clock, 0, DUR);
 
-  const idx = render(clock, dt);
-  blit(clock);
-  updateHud(clock, idx);
-}
-
-/* One frame of the song at time t into the buffer. Everything it draws is
-   a function of t (and the smoothed meters, which only need dt), so the PV
-   renderer can step it frame by frame with no audio playing. */
-function render(t, dt) {
+  const t = clock;
   sampleAudio(t, dt);
 
   const si = shotAt(t), shot = STORY.shots[si];
@@ -1222,348 +1206,19 @@ function render(t, dt) {
   g.lineP = g.line ? clamp(g.lineAge / Math.max(.5, g.line.d), 0, 1) : 0;
 
   paint();
-  return idx;
-}
 
-/* whole-pixel shake on the big hits, in buffer pixels */
-function shake(t) {
-  if (RM || F.punch <= .4) return [0, 0];
-  return [Math.round(Math.sin(t * 61) * F.punch * 2), Math.round(Math.cos(t * 47) * F.punch * 1.5)];
-}
-// blit: integer scale, no smoothing
-function blit(t) {
+  // blit: integer scale, no smoothing, whole-pixel shake on the big hits
   ctx.imageSmoothingEnabled = false;
-  const [dx, dy] = shake(t);
-  if (dx || dy) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); }
-  ctx.drawImage(buf, dx * SC, dy * SC, BW * SC, BH * SC);
-}
+  let dx = 0, dy = 0;
+  if (!RM && F.punch > .4) {
+    dx = Math.round(Math.sin(t * 61) * F.punch * 2) * SC;
+    dy = Math.round(Math.cos(t * 47) * F.punch * 1.5) * SC;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.drawImage(buf, dx, dy, BW * SC, BH * SC);
 
-/* ================================ PV =============================== */
-/* index.html?pv=<id> turns the player into a frame renderer for
-   tools/render_pv.js: no audio, no UI, a fixed 1920×1080 frame, the
-   player chrome swapped for a PV corner HUD (section, bar, tempo, time
-   code), and the song bracketed by a pixel title card and a curtain call.
-   Frames are asked for by video time T; the song itself starts at PV_HEAD. */
-const PV_HEAD = 3.6, PV_TAIL = 8, PV_FADE = .5, PV_CAST = 3.6;
-let pvFps = 30, pvT = 0;
-const cardC = document.createElement('canvas'), cc = cardC.getContext('2d');
-const outC = document.createElement('canvas'), oc = outC.getContext('2d', { willReadFrequently: true });
-const masks = new Map();
-function pvSize() { cardC.width = outC.width = BW; cardC.height = outC.height = BH; masks.clear(); }
-// a 4×4 Bayer screen with `level` of its 16 cells solid: the dissolve
-// between a card and the song is the same ordered dither as everything else
-function mask(level) {
-  let p = masks.get(level);
-  if (p) return p;
-  const c = document.createElement('canvas'); c.width = c.height = 4;
-  const x = c.getContext('2d'); x.fillStyle = '#000';
-  for (let i = 0; i < 16; i++) if (BAYER[i] < level) x.fillRect(i % 4, (i / 4) | 0, 1, 1);
-  p = cc.createPattern(c, 'repeat'); masks.set(level, p);
-  return p;
+  updateHud(t, idx);
 }
-
-const p2 = n => String(n).padStart(2, '0'), p3 = n => String(n).padStart(3, '0');
-function timecode(T) {
-  const f = Math.floor(T * pvFps + 1e-6), s = Math.floor(f / pvFps);
-  return p2(Math.floor(s / 3600)) + ':' + p2(Math.floor(s / 60) % 60) + ':' + p2(s % 60) + ':' + p2(f % pvFps);
-}
-function secLabel(t) {
-  for (let i = 0; i < SEC.length; i++)
-    if (t >= SEC[i].start && t < SEC[i].end + .4) return 'SEC ' + p2(i + 1) + ' ' + String(SEC[i].kind || '').toUpperCase();
-  if (!SEC.length || t < SEC[0].start) return 'SEC 00 INTRO';
-  return t >= SEC[SEC.length - 1].end ? 'OUTRO' : 'INTERLUDE';
-}
-
-/* the corner HUD: crop marks, what is playing, and where in the song we are */
-function pvHud(g) {
-  const P = g.P, t = g.t, m = 3, L = 9;
-  for (const [x, y, sx, sy] of [[m, m, 1, 1], [BW - m - 1, m, -1, 1], [m, BH - m - 1, 1, -1], [BW - m - 1, BH - m - 1, -1, -1]]) {
-    fill(sx > 0 ? x : x - L + 1, y, L, 1, P.ink);
-    fill(x, sy > 0 ? y : y - L + 1, 1, L, P.ink);
-  }
-  const tw = Math.round(port ? BW * .6 : BW * .42);
-  textOut(clipText(LY.title, 8, tw), 9, 6, 8, P.ink, '#000', 'left', 900);
-  textOut(clipText(LY.cast + ' / 鋒兄宇宙 PIXEL PV', 7, tw), 9, 17, 7, P.lit, '#000', 'left', 700);
-
-  const y = BH - 13;
-  const beatN = (t - AA.beat0) / BEAT;
-  const bar = Math.max(1, Math.floor(beatN / 4) + 1), bars = Math.max(1, Math.ceil((DUR - AA.beat0) / BEAT / 4));
-  // a lamp that lights on every beat, the downbeat brightest
-  fill(9, y + 1, 5, 5, '#000');
-  fill(10, y + 2, 3, 3, F.beat > .45 ? (((beatN % 4) + 4) % 4 < 1 ? P.lamp : P.warm) : P.bg1);
-  textOut('BPM ' + AA.bpm.toFixed(1) + '   ' + secLabel(t), 18, y, 7, P.ink, '#000', 'left', 700);
-  textOut(timecode(pvT) + '   BAR ' + p3(Math.min(bar, bars)) + ' / ' + p3(bars), BW - 9, y, 7, P.ink, '#000', 'right', 700);
-}
-
-/* ---- cards ---- */
-function ridge(y0, amp, freq, seed, col) {
-  for (let x = 0; x < BW; x += 2) {
-    const y = Math.round(y0 - amp * (Math.sin(x * freq + seed) * .6 + Math.sin(x * freq * 2.3 + seed * 3) * .4));
-    fill(x, y, 2, BH - y, col);
-  }
-}
-// the night every card stands in: stars, a moon, two ridges and a village
-function night(P, T) {
-  ramp(0, 0, BW, Math.round(BH * .7), P.sky, P.bg1, 0, 12, 12);
-  for (let i = 0; i < 80; i++) {
-    const x = Math.round(hash(i) * BW), y = Math.round(hash(i + 50) * BH * .6);
-    const tw = (T * (1 + hash(i + 7) * 2) + hash(i + 3) * 9) % 3;
-    fill(x, y, 1, 1, tw < .3 ? P.lamp : hash(i + 11) > .6 ? P.ink : P.lit);
-    if (hash(i + 21) > .92 && tw < .8) { fill(x - 1, y, 3, 1, P.lamp); fill(x, y - 1, 1, 3, P.lamp); }
-  }
-  const mx = Math.round(BW * .12), my = Math.round(BH * .2), r = Math.round(BH * .08);
-  disc(mx, my, r + 3, dit(P.sky, P.lit, 5));
-  disc(mx, my, r, P.lamp);
-  disc(mx - r * .35, my - r * .15, r * .3, dit(P.lamp, P.warm, 9));
-  disc(mx + r * .3, my + r * .35, r * .22, dit(P.lamp, P.warm, 9));
-  disc(mx + r * .2, my - r * .45, r * .14, dit(P.lamp, P.warm, 9));
-  ridge(BH * .66, BH * .05, .018, 1.3, dit(P.bg1, P.bg2, 10));
-  ridge(BH * .78, BH * .035, .027, 4.1, P.bg0);
-  // a village along the near ridge, windows blinking on and off
-  for (let i = 0; i < 9; i++) {
-    const x = Math.round(BW * (.05 + i * .11 + hash(i + 70) * .04)), w = 9 + Math.round(hash(i + 80) * 6);
-    const y = Math.round(BH * .78 - 8 - hash(i + 90) * 4);
-    fill(x, y, w, BH, P.bg0);
-    tri(x - 2, y, x + w + 2, y, x + w / 2, y - 5, P.bg0);
-    for (let k = 0; k < 2; k++)
-      if ((T * .7 + hash(i * 3 + k) * 5) % 4 > 1) fill(x + 2 + k * (w - 6), y + 3, 2, 2, P.lamp);
-  }
-  fill(0, Math.round(BH * .9), BW, BH, dit(P.bg0, P.sky, 8));
-}
-// the title logo: chunky type, every character its own colour from the
-// palette, a fat white rim and a hard dark drop shadow, the characters
-// hopping one after another on the beat. Returns the y under the last row.
-function logo(str, y, maxW, big, P, drop) {
-  let rows = [str], fs = fitText(str, big, maxW, 900);
-  if (fs < big * .7 && [...str].length > 6) {
-    const cs = [...str];
-    let cut = cs.findIndex(c => c === ' ' || c === '　');
-    if (cut < 0) cut = Math.round(cs.length / 2);
-    rows = [cs.slice(0, cut).join('').trim(), cs.slice(cut).join('').trim()];
-    fs = Math.min(big, ...rows.map(r => fitText(r, big, maxW, 900)));
-  }
-  const cols = [P.acc, P.warm, P.acc2, P.lit, P.lamp];
-  let n = 0;
-  for (const row of rows) {
-    const cs = [...row];
-    setFont(fs, 900); b.textAlign = 'left'; b.textBaseline = 'top';
-    const ws = cs.map(c => b.measureText(c).width), tw = ws.reduce((s2, v) => s2 + v, 0);
-    const hop = Math.floor(g.beatN * 2);
-    const at = [];
-    let x = BW / 2 - tw / 2;
-    for (let i = 0; i < cs.length; i++) {
-      at.push([Math.round(x), Math.round(y + drop - ((hop % (cs.length + 3)) === i ? 2 : 0))]);
-      x += ws[i];
-    }
-    // shadow, rim, then the coloured faces, each pass under the next
-    b.fillStyle = '#0b0610';
-    cs.forEach((c, i) => { for (let dx = -2; dx <= 4; dx++) for (let dy = -2; dy <= 5; dy++) b.fillText(c, at[i][0] + dx, at[i][1] + dy); });
-    b.fillStyle = '#fffaf2';
-    cs.forEach((c, i) => { for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (dx * dx + dy * dy <= 5) b.fillText(c, at[i][0] + dx, at[i][1] + dy); });
-    const mid = Math.round(fs * .58);
-    cs.forEach((c, i) => {
-      const col = cols[(n + i) % cols.length], [cx, cy] = at[i];
-      b.fillStyle = col; b.fillText(c, cx, cy);
-      b.save(); b.beginPath(); b.rect(cx - 2, cy + mid, ws[i] + 4, fs); b.clip();
-      b.fillStyle = shade(col, .78); b.fillText(c, cx, cy); b.restore();
-    });
-    n += cs.length;
-    y += fs + 8;
-  }
-  return y;
-}
-// a ribbon banner with folded tails, growing out from the middle
-function ribbon(str, y, p, P) {
-  const fs = 9, full = Math.min(BW * .86, measure(str, fs, 800) + 34), w = Math.round(full * easeOut(clamp(p, 0, 1)));
-  if (w < 4) return;
-  const x = Math.round(BW / 2 - w / 2), h = 17;
-  tri(x - 10, y + 4, x + 2, y + 4, x + 2, y + h + 4, P.bg0);
-  tri(x - 10, y + h + 4, x + 2, y + 4, x - 4, y + h / 2 + 4, P.bg0);
-  tri(x + w + 10, y + 4, x + w - 2, y + 4, x + w - 2, y + h + 4, P.bg0);
-  tri(x + w + 10, y + h + 4, x + w - 2, y + 4, x + w + 4, y + h / 2 + 4, P.bg0);
-  fill(x, y, w, h, P.acc);
-  frame(x, y, w, h, '#0b0610', 1);
-  frame(x + 2, y + 2, w - 4, h - 4, P.warm, 1);
-  if (p > .7) text(clipText(str, fs, w - 12), BW / 2, y + 4, fs, P.ink, 'center', 800);
-}
-function lineup(who, T, h, dance, flipLast) {
-  const n = who.length, gap = Math.min(BW / (n + .4), h * 1.05);
-  for (let i = 0; i < n; i++)
-    figure({ x: Math.round(BW / 2 + (i - (n - 1) / 2) * gap), y: Math.round(BH * .95), h, t: T, sing: F.level, ph: i * .7,
-             ...who[i], dance: typeof dance === 'function' ? dance(i) : dance, di: i, beatOff: i % 2 ? .5 : 0,
-             flip: flipLast && i === n - 1 && n > 1,
-             shadowBack: g.P.bg0, shadowFront: g.P.bg1 });
-}
-// petals drifting down across the card, a few pixels each, tumbling
-function petals(P, T, n) {
-  for (let i = 0; i < n; i++) {
-    const sp = .07 + hash(i * 1.3 + 5) * .08;
-    const y = ((hash(i + 13) + T * sp) % 1.15 - .08) * BH;
-    const x = ((hash(i + 31) + T * sp * .6) % 1) * BW + Math.sin(T * 1.7 + i) * 4;
-    const col = i % 3 === 0 ? P.acc2 : i % 3 === 1 ? P.ink : P.warm;
-    const f = (T * 4 + i) % 4 | 0;   // the tumble: four poses of a 3-pixel petal
-    if (f === 0) fill(x, y, 3, 2, col);
-    else if (f === 1) { fill(x, y, 2, 2, col); fill(x + 1, y + 1, 2, 1, col); }
-    else if (f === 2) fill(x + 1, y, 1, 3, col);
-    else { fill(x, y + 1, 2, 2, col); fill(x + 1, y, 2, 1, col); }
-  }
-}
-// a line of lyric scattered down the dark edges of the sky in vertical
-// columns, each character fading in through the dither on its own beat
-function scatter(P, str, T, t0) {
-  const cs = [...str].filter(c => c.trim());
-  for (let i = 0; i < cs.length; i++) {
-    const side = i % 2, k = i >> 1;
-    const x = side ? BW * (.8 + hash(i + 3) * .14) : BW * (.04 + hash(i + 3) * .12);
-    const y = BH * (.3 + k * .085 + hash(i + 9) * .04) - (T - t0) * 3;
-    const lv = clamp((T - t0 - i * .12) * 14, 0, 13);
-    if (lv > 0) text(cs[i], x, y, 10, dit(P.sky, P.lit, lv), 'center', 700);
-  }
-}
-function titleCard(P, T) {
-  night(P, T);
-  scatter(P, LY.tagline || '', T, .9);
-  petals(P, T, 14);
-  const no = CAT.findIndex(s => s.id === SONG.id) + 1;
-  text('No.' + p2(no) + '  鋒兄宇宙 PIXEL PV', BW - 9, 8, 7, P.lit, 'right', 700);
-  const lead = window.MV_STORY.__lead ? window.MV_STORY.__lead(SONG.id) : [];
-  lineup(lead, T, Math.round(BH * .36), i => ['cheer', 'wave', 'heart', 'clap'][i % 4], true);
-  const drop = -(1 - easeBack(clamp(T / .8, 0, 1))) * BH * .5;
-  // a title that has to wrap gets a smaller logo, so the ribbon still clears the dancers
-  const long = fitText(LY.title, 34, BW * .84, 900) < 34 * .7;
-  const y = logo(LY.title, Math.round(BH * (long ? .08 : .13)), BW * .84, long ? 24 : 34, P, drop);
-  ribbon(LY.tagline || LY.cast, y - 1, (T - .6) / .5, P);
-  if (T > 1.1) textOut(LY.cast, BW / 2, y + 20, 8, P.ink, '#000', 'center', 800);
-}
-/* ---- the curtain call: a desktop of "<name>.pet" windows ---- */
-function petWin(P, who, x, y, w, h, col, T, i) {
-  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
-  fill(x + 3, y + 4, w, h, '#0b0610');
-  fill(x - 1, y - 1, w + 2, h + 2, '#0b0610');
-  fill(x, y, w, h, '#fffaf2');
-  // the title bar: a paw, the file name, the id tag and three buttons
-  fill(x + 1, y + 1, w - 2, 12, col);
-  fill(x + 1, y + 12, w - 2, 1, shade(col, .7));
-  disc(x + 7, y + 7, 3, '#fffaf2'); disc(x + 7, y + 7, 1, col);
-  text((who.name || who.id) + '.pet', x + 13, y + 3, 7, '#0b0610', 'left', 900);
-  text(String(who.id || '').toUpperCase(), x + w - 26, y + 4, 6, '#0b0610', 'right', 700);
-  for (let k = 0; k < 3; k++) { disc(x + w - 20 + k * 7, y + 7, 2, '#0b0610'); fill(x + w - 21 + k * 7, y + 7, 3, 1, '#fffaf2'); }
-  const box = { x: x + 2, y: y + 14, w: w - 4, h: h - 16 };
-  ramp(box.x, box.y, box.w, box.h, '#fffaf2', shade(col, 1.15), 2, 11, 6);
-  // polka dots behind the character, like a wallpaper
-  b.fillStyle = dit('#fffaf2', col, 6);
-  for (let yy = box.y + 4; yy < box.y + box.h; yy += 8)
-    for (let xx = box.x + ((yy / 8) % 2 ? 4 : 0); xx < box.x + box.w; xx += 8) b.fillRect(xx, yy, 2, 2);
-  b.save(); b.beginPath(); b.rect(box.x, box.y, box.w, box.h); b.clip();
-  if (CEL || !who.id || !window.MV_PUPPET ||
-      !MV_PUPPET.draw(b, { id: who.id, box, t: T, beat: g.beatN + i * .5, i: 1, move: 'bounce' }))
-    bust({ ...who, x: box.x + box.w * .05, y: box.y + 2, w: box.w * .9, t: T, sing: F.level });
-  b.restore();
-}
-function desktop(P, T) {
-  ramp(0, 0, BW, BH, '#fffaf2', shade(P.acc2, 1.2), 1, 9, 10);
-  b.fillStyle = dit('#fffaf2', P.lit, 5);
-  for (let y = 6; y < BH - 14; y += 10) for (let x = 6 + ((y / 10) % 2 ? 5 : 0); x < BW; x += 10) b.fillRect(x, y, 1, 1);
-  // sparkles
-  for (let i = 0; i < 10; i++) {
-    if ((T * 1.3 + hash(i + 40) * 4) % 2 > 1.2) continue;
-    const x = Math.round(hash(i + 60) * BW), y = Math.round(hash(i + 61) * (BH - 20));
-    fill(x - 2, y, 5, 1, P.acc); fill(x, y - 2, 1, 5, P.acc);
-  }
-  // a PC-98 task bar
-  fill(0, BH - 13, BW, 13, '#0b0610');
-  fill(0, BH - 12, BW, 12, P.sky);
-  fill(3, BH - 10, 34, 8, P.acc); text('CAST', 20, BH - 10, 7, '#fffaf2', 'center', 900);
-  text(LY.title, 42, BH - 10, 7, P.ink, 'left', 700);
-  text(timecode(pvT), BW - 6, BH - 10, 7, P.warm, 'right', 700);
-}
-function castCard(P, T, u) {
-  desktop(P, T);
-  const who = window.MV_STORY.__lead ? window.MV_STORY.__lead(SONG.id) : [];
-  const n = who.length, cols = [P.warm, P.acc2, P.acc, P.lit];
-  const w = Math.round(BW * (n > 2 ? .34 : .4)), h = Math.round(BH * (n > 2 ? .58 : .7));
-  for (let i = 0; i < n; i++) {
-    const p = clamp((u - .15 - i * .35) / .35, 0, 1);
-    if (p <= 0) continue;
-    const span = BW - w - 24;
-    const x = 12 + (n > 1 ? span * i / (n - 1) : span / 2);
-    const y = (n > 2 ? (i % 2 ? BH * .3 : BH * .06) : BH * .1) + (1 - easeBack(p)) * BH * .5;
-    petWin(P, who[i], x, y, w, h, cols[i % cols.length], T, i);
-  }
-}
-function theEnd(P, T, u) {
-  night(P, T);
-  petals(P, T, 40);
-  const all = window.MV_STORY.__cast ? window.MV_STORY.__cast() : [];
-  lineup(all, T, Math.round(BH * .34), u > PV_TAIL - PV_CAST - 1.6 ? 'bow' : 'routine');
-  const y = logo('THE END', Math.round(BH * .12), BW * .7, 30, P, -(1 - easeBack(clamp(u / .8, 0, 1))) * BH * .5);
-  ribbon(LY.title, y - 1, (u - .5) / .5, P);
-  if (u > 1) {
-    textOut('MUSIC & LYRICS © 鋒兄 · 塗哥', BW / 2, y + 21, 7, P.ink, '#000', 'center', 700);
-    textOut('PIXEL PV · 鋒兄宇宙', BW / 2, y + 31, 7, P.lit, '#000', 'center', 700);
-  }
-}
-// the cast on their desktop first, then THE END wiping in from the right
-function endCard(P, T) {
-  const u = T - PV_HEAD - DUR;
-  if (u < PV_CAST) return castCard(P, T, u);
-  theEnd(P, T, u - PV_CAST);
-  const wipe = clamp((u - PV_CAST) / .35, 0, 1);
-  if (wipe < 1) {
-    const edge = Math.round(BW * (1 - easeIn(wipe)));
-    b.save(); b.beginPath(); b.rect(0, 0, edge, BH); b.clip();
-    castCard(P, T, u);
-    b.restore();
-    fill(edge, 0, 3, BH, '#fffaf2');
-  }
-}
-
-/* one video frame at T, returned as the RGBA of the buffer */
-function pvFrame(T, dt) {
-  pvT = T;
-  const t = clamp(T - PV_HEAD, 0, DUR), end = PV_HEAD + DUR;
-  const card = T < PV_HEAD ? titleCard : T >= end ? endCard : null;
-  const cover = T < PV_HEAD ? clamp((PV_HEAD - T) / PV_FADE, 0, 1) : T >= end ? clamp((T - end) / PV_FADE, 0, 1) : 0;
-  if (card) {
-    g.P = STORY.pal; g.t = T; g.port = port; g.BW = BW; g.BH = BH;
-    // keep the dancers on the song's grid, sixteen bars ahead so it is never negative
-    g.beatN = (T - PV_HEAD - AA.beat0) / BEAT + 64;
-    card(g.P, T);
-    crt(g);
-    cc.globalCompositeOperation = 'copy'; cc.drawImage(buf, 0, 0);
-    cc.globalCompositeOperation = 'destination-in'; cc.fillStyle = mask(Math.round(cover * 16)); cc.fillRect(0, 0, BW, BH);
-    cc.globalCompositeOperation = 'source-over';
-  }
-  if (cover < 1) render(t, dt);
-  if (card) b.drawImage(cardC, 0, 0);
-  const [dx, dy] = card ? [0, 0] : shake(t);
-  oc.fillStyle = '#000'; oc.fillRect(0, 0, BW, BH);
-  oc.drawImage(buf, dx, dy);
-  return oc.getImageData(0, 0, BW, BH).data;
-}
-function b64(u8) {
-  let s = '';
-  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-window.__pv = {
-  ready: () => !!SONG && (CEL || !window.MV_PUPPET || !window.MV_CAST_ART ||
-                          Object.keys(MV_CAST_ART).every(id => MV_PUPPET.ready(id))),
-  info: () => ({ id: SONG.id, title: SONG.title, cast: SONG.cast, tagline: SONG.tagline, dur: DUR,
-                 head: PV_HEAD, tail: PV_TAIL, length: PV_HEAD + DUR + PV_TAIL, bw: BW, bh: BH, err: lastErr }),
-  cel: on => { CEL = !!on; },
-  // n frames from T0 as packed RGB, base64. The last one is also shown on screen.
-  grab(T0, n, fps) {
-    pvFps = fps;
-    const fb = BW * BH * 3, out = new Uint8Array(fb * n);
-    for (let k = 0; k < n; k++) {
-      const d = pvFrame(T0 + k / fps, 1 / fps);
-      for (let i = 0, o = k * fb; i < d.length; i += 4) { out[o++] = d[i]; out[o++] = d[i + 1]; out[o++] = d[i + 2]; }
-    }
-    ctx.imageSmoothingEnabled = false; ctx.drawImage(outC, 0, 0, W, H);
-    return b64(out);
-  }
-};
 
 /* ============================== player ============================= */
 let lastTime = '', lastPct = -1;
@@ -1692,14 +1347,7 @@ resize();
 $('#qName').textContent = QNAME[QUAL];
 $('#celName').textContent = CEL ? '手繪' : '立繪';
 if (window.MV_PUPPET) MV_PUPPET.preload();
-if (PV) {
-  // frames are pulled by tools/render_pv.js through window.__pv, not by rAF
-  document.documentElement.classList.add('pv');
-  const i = CAT.findIndex(s => s.id === PV);
-  loadSong(i >= 0 ? i : 0, false);
-} else {
-  const wanted = CAT.findIndex(s => s.id === store.get('px.song'));
-  loadSong(wanted >= 0 ? wanted : 0, false);
-  requestAnimationFrame(t => { last = t / 1000; requestAnimationFrame(frameLoop); });
-}
+const wanted = CAT.findIndex(s => s.id === store.get('px.song'));
+loadSong(wanted >= 0 ? wanted : 0, false);
+requestAnimationFrame(t => { last = t / 1000; requestAnimationFrame(frameLoop); });
 })();

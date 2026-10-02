@@ -40,27 +40,36 @@
 | `F` | 全螢幕 | | `C` | 立繪人偶／手繪賽璐璐 |
 | `L` | 角色表（八人齊跳） | | | |
 
-## PV（影片檔）
+## PV（二次元風格影片）
 
-每首歌都可以輸出成一支 1080p 的 PV（MP4，含音樂），可以直接上傳 B 站／YouTube：
+除了像素 MV，每首歌還有一支 **二次元風格的 PV**（`pv.html` + `js/pv.js`），原生 1920×1080、
+平滑漸層、柔邊立繪（同一套 T-pose 人偶，白色貼紙描邊＋陰影），可以輸出成 MP4 直接上傳 B 站／YouTube。
 
-* **片頭（3.6 秒）**：星空夜景＋月亮＋花瓣，彩色粗描邊的像素大標題逐字跳動，
-  緞帶寫著標語，這首歌的主角 T-pose 人偶在山丘前跳舞，標語的字直排散在夜空。
-* **正片**：原本的故事分鏡，播放器的讀取條換成 PV 四角資訊 ——
-  左上曲名、下方 `BPM` ／ `SEC 03 CHORUS` ／時間碼／ `BAR 014 / 040`，外加角框。
-* **片尾（8 秒）**：先是一個桌面，主角們以 `鋒兄.pet` 這樣的視窗一個個彈出來謝幕，
-  再擦入 `THE END`，八位班底一起跳完最後一段、鞠躬。
+| 段落 | 畫面 |
+|---|---|
+| 片頭 | 糖果色粗描邊大標題（每字一色、白色外框、硬陰影、逐字彈出），膠囊標語，主角們在下面跳舞 |
+| 主歌 | 兩種輪流：「殘光」式底片條（一格一字、左右兩條）或漫畫對話泡泡（尾巴指著唱的人） |
+| 副歌 | 彩色彈跳大字，放射光或舞台聚光燈、紙花，全員齊跳（獨唱的歌會加兩位伴舞） |
+| Hook／前奏／尾奏 | 「花束」式星空：主角身邊站著一個裝滿銀河的剪影分身，歌詞直排散落夜空 |
+| 間奏 | 桌面上彈出「鋒兄.pet」這樣的角色視窗 |
+| 片尾 | 主角們的 .pet 視窗謝幕，再切到 THE END，八位班底一起跳、鞠躬 |
+
+全程有「殘光」式四角 HUD（曲名、`SEC.03  CHORUS`、時間碼、`BAR 020 / 057`、`♩=BPM`），
+換段落時是三色斜切的轉場。
+
+**在瀏覽器裡看**：直接打開 `pv.html`（或 `本地測試.bat pv`），點一下開始播放，`←` `→` 換歌。
+
+**輸出成 MP4**（需要 Node 18+、playwright、ffmpeg、Noto Sans CJK 字型）：
 
 ```bash
-npm i -g playwright            # 或 npm i -D playwright（需要 Chromium 與 ffmpeg）
-node tools/render_pv.js                     # 九首全部 → artifacts/pv/PV01_曲名.mp4 + 封面 .png
-node tools/render_pv.js s023 s101           # 只做這幾首
-node tools/render_pv.js --fps 60 --height 2160   # 60fps / 4K
-node tools/render_pv.js --preview s023      # 只輸出幾張 PNG 檢查構圖
+npm i -g playwright
+node tools/render_pv.js                 # 九首全部 → artifacts/pv/PV01_曲名.mp4 + 封面 .jpg
+node tools/render_pv.js s023 s101       # 只做這幾首
+node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查構圖
 ```
 
-引擎畫面完全由時間決定，渲染器用 `index.html?pv=<id>` 逐格把 384×216 的像素緩衝區
-抓出來，以最近鄰整數倍放大，所以影片裡每顆像素都是方的，而且跟音樂逐格對齊。
+畫面完全由時間決定，渲染器逐格要畫面再灌進 ffmpeg，所以影片跟音樂逐格對齊。
+推上 `v*` 標籤時，Release 會自動附上九支 PV。
 
 ## 本機執行
 
@@ -87,6 +96,7 @@ data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
 tools/build_cast.py   從 art/cast/*.jpg 產生 data/cast.js（需要 numpy、scipy、pillow）
+pv.html / js/pv.js    二次元風 PV（測試播放器 + 渲染頁）
 tools/render_pv.js    把每首歌輸出成 PV 影片（需要 playwright、ffmpeg）
 serve.py              支援 Range 的小型靜態伺服器
 apps/EffectsApp/      Avalonia 桌面版 + Android APP
