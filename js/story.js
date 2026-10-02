@@ -798,6 +798,13 @@ S.__default = d => ({
 });
 
 S.__who = n => CAST[n];
+/* PV 片頭站台的主角（js/px.js 的 PV 模式用），順序就是左到右 */
+const LEAD = {
+  s023: ['feng', 'tu'], s024: ['whale', 'feng', 'tu', 'gugu'], s026: ['baibai', 'bubu'],
+  s027: ['feng'], s028: ['tu'], s029: ['ya', 'feng', 'tu', 'yu'], s062: ['feng'],
+  s101: ['feng'], s102: ['feng', 'bubu', 'tu']
+};
+S.__lead = id => (LEAD[id] || ['feng', 'tu']).map(k => CAST[k]);
 S.__cast = () => [CAST.whale, CAST.gugu, CAST.feng, CAST.tu,
                   CAST.bubu, CAST.baibai, CAST.ya, CAST.yu];
 

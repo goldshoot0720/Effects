@@ -40,6 +40,28 @@
 | `F` | 全螢幕 | | `C` | 立繪人偶／手繪賽璐璐 |
 | `L` | 角色表（八人齊跳） | | | |
 
+## PV（影片檔）
+
+每首歌都可以輸出成一支 1080p 的 PV（MP4，含音樂），可以直接上傳 B 站／YouTube：
+
+* **片頭（3.6 秒）**：星空夜景＋月亮＋花瓣，彩色粗描邊的像素大標題逐字跳動，
+  緞帶寫著標語，這首歌的主角 T-pose 人偶在山丘前跳舞，標語的字直排散在夜空。
+* **正片**：原本的故事分鏡，播放器的讀取條換成 PV 四角資訊 ——
+  左上曲名、下方 `BPM` ／ `SEC 03 CHORUS` ／時間碼／ `BAR 014 / 040`，外加角框。
+* **片尾（8 秒）**：先是一個桌面，主角們以 `鋒兄.pet` 這樣的視窗一個個彈出來謝幕，
+  再擦入 `THE END`，八位班底一起跳完最後一段、鞠躬。
+
+```bash
+npm i -g playwright            # 或 npm i -D playwright（需要 Chromium 與 ffmpeg）
+node tools/render_pv.js                     # 九首全部 → artifacts/pv/PV01_曲名.mp4 + 封面 .png
+node tools/render_pv.js s023 s101           # 只做這幾首
+node tools/render_pv.js --fps 60 --height 2160   # 60fps / 4K
+node tools/render_pv.js --preview s023      # 只輸出幾張 PNG 檢查構圖
+```
+
+引擎畫面完全由時間決定，渲染器用 `index.html?pv=<id>` 逐格把 384×216 的像素緩衝區
+抓出來，以最近鄰整數倍放大，所以影片裡每顆像素都是方的，而且跟音樂逐格對齊。
+
 ## 本機執行
 
 雙擊 **`本地測試.bat`** 用預設瀏覽器打開（`file://`，不需要伺服器）。
@@ -65,6 +87,7 @@ data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
 tools/build_cast.py   從 art/cast/*.jpg 產生 data/cast.js（需要 numpy、scipy、pillow）
+tools/render_pv.js    把每首歌輸出成 PV 影片（需要 playwright、ffmpeg）
 serve.py              支援 Range 的小型靜態伺服器
 apps/EffectsApp/      Avalonia 桌面版 + Android APP
 scripts/build-release.ps1   打包 .zip 與 .apk
