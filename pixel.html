@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>鋒兄宇宙 · PIXEL MV（像素版）</title>
+<title>鋒兄宇宙 · 第二版本 · 像素 MV</title>
 <style>
   :root{
     --ink:#f4f7ff; --dim:rgba(244,247,255,.55); --dim2:rgba(244,247,255,.28);
@@ -61,6 +61,12 @@
   .card .n{font-size:9px;letter-spacing:.3em;color:var(--dim2)}
   .card .t{font-size:14px;font-weight:900;line-height:1.3}
   .card .c{font-size:10px;letter-spacing:.1em;color:var(--dim)}
+  /* the version switch: 第一版本 (index.html) / 第二版本 (this page) */
+  #start .ver{display:inline-flex;margin-bottom:20px;border:1px solid rgba(255,210,74,.6);border-radius:4px;overflow:hidden;
+    font-size:12px;font-weight:900;letter-spacing:.14em}
+  #start .ver>*{padding:8px 16px;color:var(--ink);text-decoration:none;background:rgba(12,10,22,.7)}
+  #start .ver .on{background:var(--gold);color:#140b0c}
+  #start .ver a:hover{color:var(--gold)}
   #start .keys{margin-top:26px;font-size:10px;letter-spacing:.1em;color:var(--dim2);line-height:2}
 
   @media (max-width:480px){
@@ -89,13 +95,16 @@
     <button class="b" id="bQual">像素 <span class="k">Q ·</span> <span id="qName">中</span></button>
     <button class="b" id="bCel" title="角色：T-pose 立繪人偶／手繪賽璐璐">角色 <span class="k">C ·</span> <span id="celName">立繪</span></button>
     <button class="b" id="bFull">全螢幕 <span class="k">F</span></button>
-    <a class="b" id="bPv" href="index.html" title="二次元風 PV" style="text-decoration:none">二次元 PV</a>
+    <a class="b" id="bPv" href="index.html" title="第一版本：二次元 PV" style="text-decoration:none">第一版本</a>
     <div id="now"><span id="ttl">—</span><span id="cast"></span></div>
   </div>
 </div>
 
 <div id="start">
   <div class="in">
+    <nav class="ver" aria-label="版本">
+      <a href="index.html">第一版本 · 二次元 PV</a><span class="on">第二版本 · 像素 MV</span>
+    </nav>
     <div class="kick">鋒 兄 宇 宙 · P I X E L　M V</div>
     <h2>選一首歌</h2>
     <div class="sub">90 年代 PC-98 賽璐璐風 · 每首歌一組故事分鏡</div>

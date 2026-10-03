@@ -828,7 +828,7 @@ function apply(d, i) {
   BAKED.clear();
   lastT = -1; onsetIdx = 0;
   for (const k in F) F[k] = 0;
-  document.title = d.title + ' · 鋒兄宇宙 PV';
+  document.title = d.title + ' · 第一版本 · 二次元 PV';
 }
 // load a song by id (its data file on demand), then call back
 function load(id, cb) {

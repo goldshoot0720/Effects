@@ -1239,7 +1239,7 @@ function applySong(d, autoplay) {
   STORY.shots.sort((a, c) => a.t - c.t);
   audio.src = d.audio; audio.load();
   clock = 0; resetOnsets(0);
-  document.title = d.title + ' · PIXEL MV';
+  document.title = d.title + ' · 第二版本 · 像素 MV';
   $('#ttl').textContent = d.title;
   $('#cast').textContent = d.cast;
   store.set('px.song', d.id);

@@ -1,14 +1,15 @@
 # 鋒兄宇宙 · PV
 
-把 9 首歌做成 **二次元風格的 PV**，原本的 **90 年代 PC-98 像素 MV** 也保留著。
+首頁有兩個版本：**第一版本**是二次元風格的 PV，**第二版本**是原本的 90 年代 PC-98 像素 MV，
+兩邊的選歌頁上方都可以切換。
 每一首先有自己的故事觀（見 [STORY.md](STORY.md)）。
 
-* 線上版：<https://effects-nine.vercel.app>（二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（像素 MV）
+* 線上版：<https://effects-nine.vercel.app>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（`.zip` 桌面版 / `.apk` 手機版 / 九支 PV 的 `.mp4`）
 
 ---
 
-## 二次元風 PV（首頁）
+## 第一版本 · 二次元風 PV（index.html）
 
 首頁 `index.html` 就是 PV 播放器（`js/pv.js`），每首歌一支 **二次元風格的 PV**：原生 1920×1080、
 平滑漸層、柔邊立繪（同一套 T-pose 人偶，白色貼紙描邊＋陰影），可以輸出成 MP4 直接上傳 B 站／YouTube。
@@ -40,7 +41,7 @@ node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查
 畫面完全由時間決定，渲染器逐格要畫面再灌進 ffmpeg，所以影片跟音樂逐格對齊。
 推上 `v*` 標籤時，Release 會自動附上九支 PV。
 
-## 像素 MV（pixel.html）
+## 第二版本 · 像素 MV（pixel.html）
 
 * **真的是像素**：整個畫面畫進一塊短邊約 200 邏輯像素的緩衝區，再以整數倍、
   關閉平滑地放大，所以每一條邊都落在一顆方方正正的像素上。
@@ -86,8 +87,8 @@ node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查
 ## 專案結構
 
 ```
-index.html            首頁：二次元風 PV 播放器（UI / 樣式）
-pixel.html            像素 MV（UI / 樣式）
+index.html            首頁第一版本：二次元風 PV 播放器（UI / 樣式）
+pixel.html            首頁第二版本：像素 MV（UI / 樣式）
 js/px.js              像素引擎：緩衝區、網點、賽璐璐人物、對話視窗、播放器
 js/puppet.js          T-pose 人偶：WebGL2 蒙皮、骨架、舞步（MOVES / ROUTINE）
 js/story.js           九首歌的世界觀、色盤、角色表與分鏡
