@@ -65,3 +65,53 @@ jobs:
           files: |
             artifacts/v${{ steps.version.outputs.value }}/Effects-*.zip
             artifacts/v${{ steps.version.outputs.value }}/Effects-*.apk
+
+  pv:
+    # every song rendered as a 1080p anime-style PV (MP4 + cover JPG) and
+    # attached to the same release; independent of the app build, so one
+    # failing does not hold back the other
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          v='${{ inputs.version }}'
+          [ -z "$v" ] && v='${{ github.ref_name }}'
+          v="${v#v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] || { echo "Invalid version: $v"; exit 1; }
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ffmpeg, CJK fonts and Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk fonts-noto-cjk-extra
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Render PVs
+        run: node tools/render_pv.js --out artifacts/pv
+
+      - name: Save PVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: effects-pv-${{ steps.version.outputs.value }}
+          path: artifacts/pv/*
+          if-no-files-found: error
+
+      - name: Attach PVs to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          files: |
+            artifacts/pv/*.mp4
+            artifacts/pv/*.jpg
