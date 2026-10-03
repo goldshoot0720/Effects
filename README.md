@@ -1,14 +1,46 @@
-# 鋒兄宇宙 · PIXEL MV
+# 鋒兄宇宙 · PV
 
-把 9 首歌做成 **90 年代日本 PC-98／賽璐璐風格的像素音樂錄影帶**。
-每一首先有自己的故事觀（見 [STORY.md](STORY.md)），動畫再照著故事分鏡生成。
+把 9 首歌做成 **二次元風格的 PV**，原本的 **90 年代 PC-98 像素 MV** 也保留著。
+每一首先有自己的故事觀（見 [STORY.md](STORY.md)）。
 
-* 線上版：<https://effects-nine.vercel.app>
-* 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（`.zip` 桌面版 / `.apk` 手機版）
+* 線上版：<https://effects-nine.vercel.app>（二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（像素 MV）
+* 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（`.zip` 桌面版 / `.apk` 手機版 / 九支 PV 的 `.mp4`）
 
 ---
 
-## 特色
+## 二次元風 PV（首頁）
+
+首頁 `index.html` 就是 PV 播放器（`js/pv.js`），每首歌一支 **二次元風格的 PV**：原生 1920×1080、
+平滑漸層、柔邊立繪（同一套 T-pose 人偶，白色貼紙描邊＋陰影），可以輸出成 MP4 直接上傳 B 站／YouTube。
+
+| 段落 | 畫面 |
+|---|---|
+| 片頭 | 糖果色粗描邊大標題（每字一色、白色外框、硬陰影、逐字彈出），膠囊標語，主角們在下面跳舞 |
+| 主歌 | 兩種輪流：「殘光」式底片條（一格一字、左右兩條）或漫畫對話泡泡（尾巴指著唱的人） |
+| 副歌 | 彩色彈跳大字，放射光或舞台聚光燈、紙花，全員齊跳（獨唱的歌會加兩位伴舞） |
+| Hook／前奏／尾奏 | 「花束」式星空：主角身邊站著一個裝滿銀河的剪影分身，歌詞直排散落夜空 |
+| 間奏 | 桌面上彈出「鋒兄.pet」這樣的角色視窗 |
+| 片尾 | 主角們的 .pet 視窗謝幕，再切到 THE END，八位班底一起跳、鞠躬 |
+
+全程有「殘光」式四角 HUD（曲名、`SEC.03  CHORUS`、時間碼、`BAR 020 / 057`、`♩=BPM`），
+換段落時是三色斜切的轉場。
+
+**操作**：選一張歌卡開始播放；`空白` 播放／暫停、`←` `→` 倒退／快進 5 秒、`N` `P` 換歌、
+`S` 選歌、`0`–`9` 跳段、`F` 全螢幕，拖曳進度條可以跳到任何地方。整首播完自動接下一首。
+
+**輸出成 MP4**（需要 Node 18+、playwright、ffmpeg、Noto Sans CJK 字型）：
+
+```bash
+npm i -g playwright
+node tools/render_pv.js                 # 九首全部 → artifacts/pv/PV01_曲名.mp4 + 封面 .jpg
+node tools/render_pv.js s023 s101       # 只做這幾首
+node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查構圖
+```
+
+畫面完全由時間決定，渲染器逐格要畫面再灌進 ffmpeg，所以影片跟音樂逐格對齊。
+推上 `v*` 標籤時，Release 會自動附上九支 PV。
+
+## 像素 MV（pixel.html）
 
 * **真的是像素**：整個畫面畫進一塊短邊約 200 邏輯像素的緩衝區，再以整數倍、
   關閉平滑地放大，所以每一條邊都落在一顆方方正正的像素上。
@@ -30,7 +62,7 @@
 * **不需要伺服器**：頻譜、音量、節拍都事先算好烘焙進 `data/song/*.js`，
   用 `file://` 直接打開也能完整同步。
 
-## 操作
+### 像素 MV 操作
 
 | 按鍵 | 功能 | | 按鍵 | 功能 |
 |---|---|---|---|---|
@@ -40,40 +72,10 @@
 | `F` | 全螢幕 | | `C` | 立繪人偶／手繪賽璐璐 |
 | `L` | 角色表（八人齊跳） | | | |
 
-## PV（二次元風格影片）
-
-除了像素 MV，每首歌還有一支 **二次元風格的 PV**（`pv.html` + `js/pv.js`），原生 1920×1080、
-平滑漸層、柔邊立繪（同一套 T-pose 人偶，白色貼紙描邊＋陰影），可以輸出成 MP4 直接上傳 B 站／YouTube。
-
-| 段落 | 畫面 |
-|---|---|
-| 片頭 | 糖果色粗描邊大標題（每字一色、白色外框、硬陰影、逐字彈出），膠囊標語，主角們在下面跳舞 |
-| 主歌 | 兩種輪流：「殘光」式底片條（一格一字、左右兩條）或漫畫對話泡泡（尾巴指著唱的人） |
-| 副歌 | 彩色彈跳大字，放射光或舞台聚光燈、紙花，全員齊跳（獨唱的歌會加兩位伴舞） |
-| Hook／前奏／尾奏 | 「花束」式星空：主角身邊站著一個裝滿銀河的剪影分身，歌詞直排散落夜空 |
-| 間奏 | 桌面上彈出「鋒兄.pet」這樣的角色視窗 |
-| 片尾 | 主角們的 .pet 視窗謝幕，再切到 THE END，八位班底一起跳、鞠躬 |
-
-全程有「殘光」式四角 HUD（曲名、`SEC.03  CHORUS`、時間碼、`BAR 020 / 057`、`♩=BPM`），
-換段落時是三色斜切的轉場。
-
-**在瀏覽器裡看**：直接打開 `pv.html`（或 `本地測試.bat pv`），點一下開始播放，`←` `→` 換歌。
-
-**輸出成 MP4**（需要 Node 18+、playwright、ffmpeg、Noto Sans CJK 字型）：
-
-```bash
-npm i -g playwright
-node tools/render_pv.js                 # 九首全部 → artifacts/pv/PV01_曲名.mp4 + 封面 .jpg
-node tools/render_pv.js s023 s101       # 只做這幾首
-node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查構圖
-```
-
-畫面完全由時間決定，渲染器逐格要畫面再灌進 ffmpeg，所以影片跟音樂逐格對齊。
-推上 `v*` 標籤時，Release 會自動附上九支 PV。
-
 ## 本機執行
 
-雙擊 **`本地測試.bat`** 用預設瀏覽器打開（`file://`，不需要伺服器）。
+雙擊 **`本地測試.bat`** 用預設瀏覽器打開二次元 PV（`file://`，不需要伺服器）；
+`本地測試.bat pixel` 打開像素 MV。
 
 想用 HTTP 測試（`serve.py` 有支援 Range，拖曳進度條才正常）：
 
@@ -84,7 +86,8 @@ node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查
 ## 專案結構
 
 ```
-index.html            主頁面（UI / 樣式）
+index.html            首頁：二次元風 PV 播放器（UI / 樣式）
+pixel.html            像素 MV（UI / 樣式）
 js/px.js              像素引擎：緩衝區、網點、賽璐璐人物、對話視窗、播放器
 js/puppet.js          T-pose 人偶：WebGL2 蒙皮、骨架、舞步（MOVES / ROUTINE）
 js/story.js           九首歌的世界觀、色盤、角色表與分鏡
@@ -96,7 +99,7 @@ data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
 tools/build_cast.py   從 art/cast/*.jpg 產生 data/cast.js（需要 numpy、scipy、pillow）
-pv.html / js/pv.js    二次元風 PV（測試播放器 + 渲染頁）
+js/pv.js              二次元風 PV：畫面、播放器、給渲染器的 window.__pv
 tools/render_pv.js    把每首歌輸出成 PV 影片（需要 playwright、ffmpeg）
 serve.py              支援 Range 的小型靜態伺服器
 apps/EffectsApp/      Avalonia 桌面版 + Android APP

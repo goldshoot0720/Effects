@@ -3,113 +3,118 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>鋒兄宇宙 · PIXEL MV</title>
+<title>鋒兄宇宙 · PV</title>
 <style>
   :root{
-    --ink:#f4f7ff; --dim:rgba(244,247,255,.55); --dim2:rgba(244,247,255,.28);
-    --gold:#ffd24a; --line:rgba(255,255,255,.14); --glass:rgba(10,8,18,.66);
-    --ui:"Microsoft JhengHei UI","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+    --ink:#2a1d3a; --paper:#fffafc; --pink:#ff5f95; --blue:#38c6ff; --gold:#ffc23a;
+    --glass:rgba(255,255,255,.86); --line:rgba(42,29,58,.16);
+    --ui:"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei UI","PingFang TC",system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%;background:#05040a;overflow:hidden;color:var(--ink);
-    font-family:var(--ui);user-select:none;-webkit-font-smoothing:antialiased}
-  #screen{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+  html,body{height:100%;background:#120c22;overflow:hidden;color:var(--ink);font-family:var(--ui);
+    user-select:none;-webkit-font-smoothing:antialiased}
+  #pv{position:fixed;inset:0;margin:auto;width:100%;height:100%;object-fit:contain;display:block;cursor:pointer}
+  html.idle,html.idle #pv{cursor:none}
 
-  #top{position:fixed;top:0;left:0;right:0;padding:12px 16px;display:flex;gap:12px;
-    align-items:flex-start;pointer-events:none;z-index:20;transition:opacity .4s}
-  #top h1{font-size:15px;font-weight:900;letter-spacing:.05em;
-    text-shadow:0 2px 0 #000,0 0 18px rgba(255,210,74,.4)}
-  #top .cast{font-size:10px;letter-spacing:.24em;color:var(--dim);margin-top:4px;
-    text-shadow:0 1px 0 #000}
+  /* the transport, a white capsule bar that fades away while it plays */
+  #bar{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom));transform:translateX(-50%);
+    width:min(960px,calc(100% - 24px));padding:10px 14px 12px;border-radius:22px;background:var(--glass);
+    border:3px solid var(--ink);box-shadow:6px 7px 0 rgba(42,29,58,.35);z-index:20;transition:opacity .35s}
+  html.idle #bar{opacity:0;pointer-events:none}
+  #scrub{position:relative;height:18px;cursor:pointer;touch-action:none}
+  #track{position:absolute;left:0;right:0;top:6px;height:6px;border-radius:3px;background:rgba(42,29,58,.14)}
+  #played{position:absolute;left:0;top:6px;height:6px;width:0;border-radius:3px;
+    background:linear-gradient(90deg,var(--pink),var(--gold),var(--blue))}
+  #row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+  .b{appearance:none;border:2.5px solid var(--ink);background:#fff;color:var(--ink);font-family:var(--ui);
+    font-size:13px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:6px 13px;cursor:pointer;
+    text-decoration:none;white-space:nowrap;transition:transform .12s,background .12s}
+  .b:hover{background:#fff1f7;transform:translateY(-1px)}
+  #play{width:44px;height:44px;padding:0;font-size:16px;background:var(--pink);color:#fff}
+  .nav{width:34px;height:34px;padding:0;font-size:12px}
+  #time{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:96px}
+  #now{margin-left:auto;display:flex;gap:10px;align-items:baseline;overflow:hidden;white-space:nowrap;max-width:40%}
+  #ttl{font-weight:900;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+  #cast{font-size:12px;opacity:.65}
 
-  #bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:0 12px 12px;
-    background:linear-gradient(to top,rgba(5,4,10,.9),rgba(5,4,10,0));transition:opacity .4s}
-  #scrub{position:relative;height:16px;cursor:pointer;touch-action:none}
-  #track{position:absolute;left:0;right:0;top:6px;height:4px;background:rgba(255,255,255,.15)}
-  #played{position:absolute;left:0;top:6px;height:4px;width:0;background:var(--gold);
-    box-shadow:0 0 10px rgba(255,210,74,.7)}
-  #row{display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap}
-  button.b{appearance:none;border:1px solid var(--line);background:var(--glass);color:var(--ink);
-    font-family:var(--ui);font-size:10px;letter-spacing:.14em;border-radius:4px;padding:7px 10px;
-    cursor:pointer;transition:.15s;white-space:nowrap}
-  button.b:hover{border-color:rgba(255,210,74,.6);color:var(--gold)}
-  #play{width:40px;height:40px;border-radius:4px;padding:0;font-size:15px;
-    border-color:rgba(255,210,74,.6);color:var(--gold);background:rgba(255,210,74,.12)}
-  .nav{width:30px;height:30px;padding:0;font-size:11px}
-  #time{font-size:10px;letter-spacing:.1em;color:var(--dim);font-variant-numeric:tabular-nums;
-    min-width:74px}
-  .k{opacity:.6}
-  #now{margin-left:auto;display:flex;gap:10px;align-items:baseline;font-size:10px;
-    letter-spacing:.14em;color:var(--dim);overflow:hidden;white-space:nowrap;max-width:44vw}
-  #now #ttl{font-weight:900;color:var(--ink)}
-
-  #start{position:fixed;inset:0;z-index:40;overflow:auto;
-    background:radial-gradient(120% 90% at 50% 25%,rgba(30,14,44,.9),rgba(3,2,8,.98));
-    transition:opacity .45s,visibility .45s}
+  /* the song list: cards on a pastel desktop */
+  #start{position:fixed;inset:0;z-index:40;overflow:auto;transition:opacity .4s,visibility .4s;
+    background:radial-gradient(circle at 20% 15%,#ffffff 0,#fff4fa 35%,#e7f6ff 100%)}
+  #start::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
+    background-image:radial-gradient(rgba(255,95,149,.35) 2px,transparent 2.5px);background-size:40px 40px}
   #start.gone{opacity:0;visibility:hidden}
-  #start .in{max-width:900px;margin:0 auto;padding:clamp(24px,6vh,60px) 20px 50px;text-align:center}
-  #start .kick{font-size:9px;letter-spacing:.6em;color:var(--dim2);margin-bottom:14px}
-  #start h2{font-size:clamp(26px,6vw,48px);font-weight:900;letter-spacing:.06em;color:var(--gold);
-    text-shadow:0 3px 0 #000,0 0 30px rgba(255,180,60,.4)}
-  #start .sub{margin-top:10px;font-size:11px;letter-spacing:.22em;color:var(--dim)}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:9px;margin-top:26px}
-  .card{display:flex;flex-direction:column;gap:5px;text-align:left;padding:12px;cursor:pointer;
-    border:1px solid var(--line);background:rgba(12,10,22,.7);color:var(--ink);
-    font-family:var(--ui);border-radius:4px;transition:.15s}
-  .card:hover{border-color:rgba(255,210,74,.6);background:rgba(34,24,48,.8)}
-  .card.cur{border-color:var(--gold);background:rgba(50,34,14,.8)}
-  .card .n{font-size:9px;letter-spacing:.3em;color:var(--dim2)}
-  .card .t{font-size:14px;font-weight:900;line-height:1.3}
-  .card .c{font-size:10px;letter-spacing:.1em;color:var(--dim)}
-  #start .keys{margin-top:26px;font-size:10px;letter-spacing:.1em;color:var(--dim2);line-height:2}
+  #start .in{position:relative;max-width:1000px;margin:0 auto;padding:clamp(26px,6vh,64px) 18px 60px;text-align:center}
+  #start .kick{font-size:12px;font-weight:800;letter-spacing:.5em;opacity:.55}
+  #start h2{margin-top:10px;font-size:clamp(38px,8vw,76px);font-weight:900;line-height:1.1;letter-spacing:.04em;
+    color:#fff;-webkit-text-stroke:0;paint-order:stroke fill;
+    text-shadow:0 0 0 #fff,4px 5px 0 var(--ink)}
+  #start h2 span{display:inline-block;-webkit-text-stroke:10px #fff;paint-order:stroke fill}
+  #start h2 span:nth-child(5n+1){color:var(--pink)} #start h2 span:nth-child(5n+2){color:var(--blue)}
+  #start h2 span:nth-child(5n+3){color:var(--gold)} #start h2 span:nth-child(5n+4){color:#8f6bff}
+  #start h2 span:nth-child(5n+5){color:#3ddc97}
+  #start .pill{display:inline-block;margin-top:16px;padding:8px 22px;border:3px solid var(--ink);border-radius:999px;
+    background:#fff;font-weight:800;font-size:14px;letter-spacing:.12em;box-shadow:4px 5px 0 rgba(42,29,58,.3)}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-top:34px;text-align:left}
+  .card{display:flex;flex-direction:column;gap:6px;padding:0 0 14px;cursor:pointer;border:3px solid var(--ink);
+    border-radius:18px;background:#fff;color:var(--ink);font-family:var(--ui);overflow:hidden;
+    box-shadow:6px 7px 0 rgba(42,29,58,.28);transition:transform .15s}
+  .card:hover{transform:translateY(-3px) rotate(-.5deg)}
+  .card .n{display:block;padding:8px 14px;font-size:12px;font-weight:900;letter-spacing:.18em;color:#fff;
+    border-bottom:3px solid var(--ink);background:var(--pink)}
+  .card:nth-child(4n+2) .n{background:var(--blue)} .card:nth-child(4n+3) .n{background:var(--gold);color:var(--ink)}
+  .card:nth-child(4n+4) .n{background:#8f6bff}
+  .card .n::before{content:"🐾 "}
+  .card .t{padding:0 14px;font-size:17px;font-weight:900;line-height:1.35}
+  .card .c{padding:0 14px;font-size:12px;font-weight:600;opacity:.65}
+  .card.cur{outline:4px solid var(--gold);outline-offset:2px}
+  #start .keys{margin-top:30px;font-size:12px;font-weight:600;line-height:2;opacity:.6}
+  #start .keys a{color:inherit}
 
-  @media (max-width:480px){
-    #top{padding:9px 11px} #top h1{font-size:13px;max-width:62vw;white-space:nowrap;
-      overflow:hidden;text-overflow:ellipsis}
-    #bottom{padding:0 9px 9px} .k{display:none}
-    button.b{font-size:9px;padding:6px 8px} #play{width:36px;height:36px}
-    .nav{width:28px;height:28px} #time{font-size:9px;min-width:64px}
-    #start .keys{display:none}
+  /* tools/render_pv.js: just the frame */
+  html.render #bar,html.render #start{display:none}
+  html.render #pv{cursor:default}
+
+  @media (max-width:560px){
+    #bar{padding:8px 10px 10px;border-radius:18px} .b{font-size:11px;padding:5px 10px}
+    #play{width:38px;height:38px} .nav{width:30px;height:30px} #time{font-size:11px;min-width:80px}
+    #now{display:none} #start .keys{display:none}
   }
 </style>
 </head>
 <body>
-<canvas id="screen"></canvas>
+<canvas id="pv" width="1920" height="1080"></canvas>
 
-<div id="bottom">
-  <div id="scrub" role="slider" aria-label="播放進度" tabindex="0">
-    <div id="track"></div><div id="played"></div>
-  </div>
+<div id="bar">
+  <div id="scrub" role="slider" aria-label="播放進度" tabindex="0"><div id="track"></div><div id="played"></div></div>
   <div id="row">
     <button class="b nav" id="bPrev" title="上一首 P">⏮</button>
-    <button class="b" id="play">▶</button>
+    <button class="b" id="play" title="播放／暫停 空白">▶</button>
     <button class="b nav" id="bNext" title="下一首 N">⏭</button>
     <div id="time">0:00 / 0:00</div>
-    <button class="b" id="bList">歌曲 <span class="k">S</span></button>
-    <button class="b" id="bQual">像素 <span class="k">Q ·</span> <span id="qName">中</span></button>
-    <button class="b" id="bCel" title="角色：T-pose 立繪人偶／手繪賽璐璐">角色 <span class="k">C ·</span> <span id="celName">立繪</span></button>
-    <button class="b" id="bFull">全螢幕 <span class="k">F</span></button>
+    <button class="b" id="bList" title="選歌 S">歌曲</button>
+    <a class="b" id="bPixel" href="pixel.html" title="原本的像素 MV">像素版</a>
+    <button class="b" id="bFull" title="全螢幕 F">全螢幕</button>
     <div id="now"><span id="ttl">—</span><span id="cast"></span></div>
   </div>
 </div>
 
 <div id="start">
   <div class="in">
-    <div class="kick">鋒 兄 宇 宙 · P I X E L　M V</div>
-    <h2>選一首歌</h2>
-    <div class="sub">90 年代 PC-98 賽璐璐風 · 每首歌一組故事分鏡</div>
+    <div class="kick">鋒 兄 宇 宙 · P V</div>
+    <h2><span>選</span><span>一</span><span>首</span><span>歌</span></h2>
+    <div class="pill">九首歌 · 九支二次元風 PV</div>
     <div id="grid"></div>
     <div class="keys">
-      空白 播放／暫停　·　← → 倒退／快進 10 秒　·　S 選歌　·　N P 換歌　·　Q 像素粗細　·　C 立繪／手繪　·　L 角色表　·　F 全螢幕
+      空白 播放／暫停　·　← → 倒退／快進 5 秒　·　S 選歌　·　N P 換歌　·　0–9 跳段　·　F 全螢幕<br>
+      想看原本的像素 MV：<a href="pixel.html">像素版</a>
     </div>
   </div>
 </div>
 
-<audio id="audio" preload="auto"></audio>
 <script src="data/songs.js?v=2.0.0"></script>
 <script src="data/cast.js?v=2.1.0"></script>
-<script src="js/puppet.js?v=2.1.0"></script>
-<script src="js/story.js?v=2.1.0"></script>
-<script src="js/px.js?v=2.1.1"></script>
+<script src="js/puppet.js?v=2.3.0"></script>
+<script src="js/story.js?v=2.3.0"></script>
+<script src="js/pv.js?v=2.0.0"></script>
 </body>
 </html>

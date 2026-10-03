@@ -22,9 +22,13 @@
 const W = 1920, H = 1080, TAU = Math.PI * 2;
 const HEAD = 3.4, TAIL = 8.5, CASTT = 3.8;
 const cvs = document.getElementById('pv');
-// CPU raster: on a machine without a GPU, Skia on the CPU is far faster than
-// a software-emulated GPU canvas, and frames are read back every time
-const MAIN = cvs.getContext('2d', { willReadFrequently: true });
+const qs = new URLSearchParams(location.search);
+// ?render: tools/render_pv.js pulls frames itself. Then the canvas is drawn on
+// the CPU — without a GPU, Skia on the CPU is far faster than a software-
+// emulated GPU canvas, and every frame is read back. In a browser it stays
+// on the GPU for smooth playback.
+const RENDER = qs.has('render');
+const MAIN = cvs.getContext('2d', RENDER ? { willReadFrequently: true } : undefined);
 let ctx = MAIN;
 // draw something once into its own canvas and keep it: the static layers of
 // each background are baked, so a frame only paints what moves
@@ -371,6 +375,11 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   opt = opt || {};
   let px = size, rs = rows(str, px, maxW);
   while (rs.length > (opt.maxRows || 2) && px > 50) { px -= 8; rs = rows(str, px, maxW); }
+  // a line with no spaces wraps into even rows, not a full row and a widow
+  if (rs.length > 1 && !/[ 　]/.test(str.trim())) {
+    const cs = [...str.trim()], n = rs.length, per = Math.ceil(cs.length / n);
+    rs = Array.from({ length: n }, (_, i) => cs.slice(i * per, (i + 1) * per).join('')).filter(Boolean);
+  }
   font(px);
   const lh = px * 1.18, y0 = cy - (rs.length - 1) * lh / 2;
   let k = 0;
@@ -796,48 +805,50 @@ function frame(T, dt) {
 }
 
 /* ------------------------------- boot ------------------------------- */
-function load(id) {
+function apply(d, i) {
+  SONG = d; AA = d.analysis; NO = i + 1;
+  BANDS = b64u8(AA.bands); RMSA = b64u8(AA.rms); NB = AA.bandCount;
+  DUR = AA.duration; BEAT = 60 / AA.bpm;
+  LINES = d.lines.map((l, k) => ({ ...l, idx: k }));
+  SEC = d.sections || [];
+  const st = window.MV_STORY[d.id] || window.MV_STORY.__default(d);
+  PAL = st.pal; BANNER = st.banner || d.title;
+  LEAD = window.MV_STORY.__lead(d.id);
+  ALL = window.MV_STORY.__cast();
+  // a solo song still gets a chorus line: two of the others dance either side of the lead
+  CHORUS = LEAD.slice();
+  if (CHORUS.length < 3) {
+    const rest = ALL.filter(c => !LEAD.includes(c));
+    const k = Math.floor(hash(NO * 7.3) * rest.length);
+    const back = [rest[k % rest.length], rest[(k + 3) % rest.length]];
+    CHORUS = CHORUS.length === 1 ? [back[0], CHORUS[0], back[1]] : [back[0], ...CHORUS];
+  }
+  CANDY = [PAL.acc, PAL.acc2, PAL.warm, '#8f6bff', '#3ddc97', '#ff7a45'];
+  buildSegs();
+  BAKED.clear();
+  lastT = -1; onsetIdx = 0;
+  for (const k in F) F[k] = 0;
+  document.title = d.title + ' · 鋒兄宇宙 PV';
+}
+// load a song by id (its data file on demand), then call back
+function load(id, cb) {
   const i = Math.max(0, CAT.findIndex(s => s.id === id));
   const meta = CAT[i];
-  NO = i + 1;
+  const done = () => { apply(window.MV_SONG_DATA[meta.id], i); if (cb) cb(); };
+  if (window.MV_SONG_DATA && window.MV_SONG_DATA[meta.id]) return done();
   const s = document.createElement('script');
-  s.src = 'data/song/' + meta.id + '.js';
-  s.onload = () => {
-    const d = window.MV_SONG_DATA[meta.id];
-    SONG = d; AA = d.analysis;
-    BANDS = b64u8(AA.bands); RMSA = b64u8(AA.rms); NB = AA.bandCount;
-    DUR = AA.duration; BEAT = 60 / AA.bpm;
-    LINES = d.lines.map((l, k) => ({ ...l, idx: k }));
-    SEC = d.sections || [];
-    const st = window.MV_STORY[d.id] || window.MV_STORY.__default(d);
-    PAL = st.pal; BANNER = st.banner || d.title;
-    LEAD = window.MV_STORY.__lead(d.id);
-    ALL = window.MV_STORY.__cast();
-    // a solo song still gets a chorus line: two of the others dance either side of the lead
-    CHORUS = LEAD.slice();
-    if (CHORUS.length < 3) {
-      const rest = ALL.filter(c => !LEAD.includes(c));
-      const k = Math.floor(hash(NO * 7.3) * rest.length);
-      const back = [rest[k % rest.length], rest[(k + 3) % rest.length]];
-      CHORUS = CHORUS.length === 1 ? [back[0], CHORUS[0], back[1]] : [back[0], ...CHORUS];
-    }
-    CANDY = [PAL.acc, PAL.acc2, PAL.warm, '#8f6bff', '#3ddc97', '#ff7a45'];
-    buildSegs();
-    document.title = d.title + ' · PV';
-  };
+  s.src = 'data/song/' + meta.id + '.js?v=2.0.0';
+  s.onload = done;
   document.head.appendChild(s);
 }
-
-const qs = new URLSearchParams(location.search);
-load(qs.get('song') || (CAT[0] && CAT[0].id));
 if (window.MV_PUPPET) MV_PUPPET.preload();
 
 window.__pv = {
   ready: () => !!SONG && !!window.MV_PUPPET && Object.keys(window.MV_CAST_ART || {}).every(id => MV_PUPPET.ready(id)),
   info: () => ({ id: SONG.id, title: SONG.title, cast: SONG.cast, tagline: SONG.tagline, dur: DUR, head: HEAD,
                  tail: TAIL, length: HEAD + DUR + TAIL, w: W, h: H, gl: MV_PUPPET.ok(), segs: SEGS.map(s => s.mode + ':' + s.t0.toFixed(1)) }),
-  // n frames from video time T0 as JPEG base64 strings
   frame: (T, dt) => frame(T, dt),
+  // n frames from video time T0 as JPEG base64 strings
   grab(T0, n, fps, q) {
     const out = [];
     for (let k = 0; k < n; k++) {
@@ -848,45 +859,124 @@ window.__pv = {
   }
 };
 
-// pv.html on its own is the test player: watch it with the music.
-// Click to start (browsers only play sound after a click), ← → change song.
-// tools/render_pv.js adds &render and pulls frames itself instead.
-if (!qs.has('render')) {
+if (RENDER) {
+  document.documentElement.classList.add('render');
+  load(qs.get('song') || (CAT[0] && CAT[0].id));
+} else player();
+
+/* ------------------------------ player ------------------------------ */
+// The web page: the PV plays along with the music. The clock follows the
+// audio while the song sounds and the wall clock over the title card and
+// the curtain call, so seeking anywhere just works.
+function player() {
+  const $ = s => document.querySelector(s);
   const audio = new Audio();
-  let t0 = null, last = 0, started = false;
-  const go = d => {
-    const i = CAT.findIndex(c => c.id === SONG.id);
-    location.search = '?song=' + CAT[(i + d + CAT.length) % CAT.length].id;
-  };
+  audio.preload = 'auto';
+  let T = 0, playing = false, anchor = 0, last = performance.now(), idx = 0, lastUi = '';
+  const LEN = () => HEAD + DUR + TAIL;
+  const fmt = v => Math.floor(v / 60) + ':' + p2(Math.floor(v % 60));
+
+  function syncAudio() {
+    const st = T - HEAD;
+    if (playing && st >= 0 && st < DUR - .05) {
+      if (Math.abs(audio.currentTime - st) > .3) audio.currentTime = st;
+      if (audio.paused) audio.play().catch(() => { });
+    } else if (!audio.paused) audio.pause();
+  }
+  function seek(v) { T = clamp(v, 0, LEN() - .01); anchor = performance.now() - T * 1000; syncAudio(); }
+  function play() {
+    if (!SONG) return;
+    if (T >= LEN() - .1) T = 0;
+    playing = true; seek(T); ui();
+  }
+  function pause() { playing = false; audio.pause(); ui(); }
+  const toggle = () => playing ? pause() : play();
+  function pick(i, auto) {
+    idx = ((i % CAT.length) + CAT.length) % CAT.length;
+    playing = false; audio.pause();
+    load(CAT[idx].id, () => {
+      audio.src = SONG.audio; T = 0;
+      try { localStorage.setItem('pv.song', SONG.id); } catch (e) { }
+      const u = new URL(location.href); u.searchParams.set('song', SONG.id); history.replaceState(null, '', u);
+      document.querySelectorAll('.card').forEach((c, k) => c.classList.toggle('cur', k === idx));
+      if ($('#ttl')) { $('#ttl').textContent = SONG.title; $('#cast').textContent = SONG.cast; }
+      if (auto) play(); else ui();
+    });
+  }
+  function ui() {
+    if ($('#play')) $('#play').textContent = playing ? '❚❚' : '▶';
+    document.documentElement.classList.toggle('playing', playing);
+  }
+  const listOpen = () => $('#start') && !$('#start').classList.contains('gone');
+  const showList = () => $('#start') && $('#start').classList.remove('gone');
+  const hideList = () => $('#start') && $('#start').classList.add('gone');
+
+  // the song cards
+  const grid = $('#grid');
+  if (grid) CAT.forEach((s, i) => {
+    const d = document.createElement('button');
+    d.className = 'card';
+    d.innerHTML = '<span class="n">PV ' + p2(i + 1) + '</span><span class="t"></span><span class="c"></span>';
+    d.querySelector('.t').textContent = s.title;
+    d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
+    d.onclick = () => { hideList(); pick(i, true); };
+    grid.appendChild(d);
+  });
+  const on = (id, f) => { const e = $(id); if (e) e.onclick = f; };
+  on('#play', () => { hideList(); toggle(); });
+  on('#bPrev', () => pick(idx - 1, true));
+  on('#bNext', () => pick(idx + 1, true));
+  on('#bList', () => listOpen() ? hideList() : showList());
+  on('#bFull', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => { }));
+  cvs.addEventListener('click', () => { if (!listOpen()) toggle(); });
+  const scrub = $('#scrub');
+  if (scrub) {
+    const to = x => { const r = scrub.getBoundingClientRect(); seek(LEN() * clamp((x - r.left) / r.width, 0, 1)); };
+    scrub.addEventListener('pointerdown', e => { scrub.setPointerCapture(e.pointerId); to(e.clientX); });
+    scrub.addEventListener('pointermove', e => { if (e.buttons) to(e.clientX); });
+  }
   addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight' || e.key === 'n') go(1);
-    else if (e.key === 'ArrowLeft' || e.key === 'p') go(-1);
-    else if (e.key === ' ' && started) audio.paused ? audio.play() : audio.pause();
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.code === 'Space' ? ' ' : (e.key || '').toLowerCase();
+    if (k === ' ') { e.preventDefault(); hideList(); toggle(); }
+    else if (k === 'arrowleft') seek(T - 5);
+    else if (k === 'arrowright') seek(T + 5);
+    else if (k === 'n') pick(idx + 1, true);
+    else if (k === 'p') pick(idx - 1, true);
+    else if (k === 's') listOpen() ? hideList() : showList();
+    else if (k === 'f') $('#bFull') && $('#bFull').click();
+    else if (k === 'escape') hideList();
+    else if (/^[0-9]$/.test(k)) seek(LEN() * (+k) / 10);
   });
-  addEventListener('click', () => {
-    if (started || !window.__pv.ready()) return;
-    started = true; audio.src = SONG.audio; audio.load();
-    t0 = performance.now();
-  });
-  const tick = now => {
+  // the controls fade away while it plays and the mouse rests
+  let idle = 0;
+  const wake = () => { document.documentElement.classList.remove('idle'); clearTimeout(idle); idle = setTimeout(() => { if (playing) document.documentElement.classList.add('idle'); }, 2600); };
+  addEventListener('pointermove', wake); addEventListener('pointerdown', wake); wake();
+
+  function tick(now) {
     requestAnimationFrame(tick);
-    if (!window.__pv.ready()) return;
-    if (!started) {
-      // the title card, waiting for a click
-      frame(1.6, 1 / 60);
-      ctx.fillStyle = 'rgba(20,10,40,.55)'; ctx.fillRect(0, H * .86, W, H * .14);
-      font(44, 900); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('▶ 點一下開始播放　　← → 換歌', W / 2, H * .93);
+    const dt = clamp((now - last) / 1000, .001, .1); last = now;
+    if (!SONG || !window.__pv.ready()) {
+      ctx.fillStyle = '#120c22'; ctx.fillRect(0, 0, W, H);
+      font(44, 700); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('載入中…', W / 2, H / 2);
       return;
     }
-    let T = (now - t0) / 1000;
-    if (T >= HEAD && audio.paused && !audio.ended && audio.currentTime === 0) audio.play().catch(() => { });
-    // the clock follows the music while it plays, and the wall clock around it
-    if (!audio.paused) { T = HEAD + audio.currentTime; t0 = now - T * 1000; }
-    else if (audio.currentTime > 0 && !audio.ended) { T = HEAD + audio.currentTime; t0 = now - T * 1000; }
-    if (T > HEAD + DUR + TAIL + 1) { go(1); return; }
-    frame(T, clamp(T - last, .001, .1)); last = T;
-  };
+    if (playing) {
+      const st = T - HEAD;
+      if (!audio.paused && st >= 0 && st < DUR) { T = HEAD + audio.currentTime; anchor = now - T * 1000; }
+      else T = (now - anchor) / 1000;
+      syncAudio();
+      if (T >= LEN()) { pick(idx + 1, true); return; }
+    }
+    frame(T, dt);
+    const tt = fmt(T) + ' / ' + fmt(LEN());
+    if (tt !== lastUi) { lastUi = tt; if ($('#time')) $('#time').textContent = tt; }
+    if ($('#played')) $('#played').style.width = (T / LEN() * 100).toFixed(2) + '%';
+  }
+  let first = qs.get('song');
+  if (!first) { try { first = localStorage.getItem('pv.song'); } catch (e) { } }
+  pick(Math.max(0, CAT.findIndex(s => s.id === first)), false);
   requestAnimationFrame(tick);
 }
 })();

@@ -2,7 +2,7 @@
 /* =====================================================================
    把每首歌輸出成一支二次元風格的 PV（MP4，1920×1080）。
 
-   用無頭 Chromium 打開 pv.html?song=<id>，透過 window.__pv 一格一格
+   用無頭 Chromium 打開 index.html?song=<id>&render，透過 window.__pv 一格一格
    要畫面（JPEG），直接灌進 ffmpeg 編成 H.264，再接上延後片頭長度的
    音檔。畫面完全由時間決定，所以輸出是逐格精準、跟音樂對齊的。
 
@@ -70,7 +70,7 @@ async function openSong(browser, id) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   page.on('pageerror', e => console.warn('  [page]', e.message));
   page.on('console', m => { if (m.type() === 'error') console.warn('  [console]', m.text()); });
-  await page.goto(pathToFileURL(path.join(ROOT, 'pv.html')).href + '?song=' + id + '&render');
+  await page.goto(pathToFileURL(path.join(ROOT, 'index.html')).href + '?song=' + id + '&render');
   await page.waitForFunction(() => window.__pv && window.__pv.info && (() => { try { return window.__pv.info().id; } catch (e) { return false; } })(),
                              null, { timeout: 30000 });
   // the T-pose puppets decode their art asynchronously and need WebGL2
