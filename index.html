@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>鋒兄宇宙 · PV</title>
+<title>鋒兄宇宙 · 第一版本 · 二次元 PV</title>
 <style>
   :root{
     --ink:#2a1d3a; --paper:#fffafc; --pink:#ff5f95; --blue:#38c6ff; --gold:#ffc23a;
@@ -67,6 +67,12 @@
   .card .t{padding:0 14px;font-size:17px;font-weight:900;line-height:1.35}
   .card .c{padding:0 14px;font-size:12px;font-weight:600;opacity:.65}
   .card.cur{outline:4px solid var(--gold);outline-offset:2px}
+  /* the version switch: 第一版本 (this page) / 第二版本 (pixel.html) */
+  .ver{display:inline-flex;margin-bottom:22px;border:3px solid var(--ink);border-radius:999px;overflow:hidden;
+    background:#fff;box-shadow:4px 5px 0 rgba(42,29,58,.3);font-weight:900;font-size:14px;letter-spacing:.06em}
+  .ver>*{padding:9px 20px;color:var(--ink);text-decoration:none}
+  .ver .on{background:var(--pink);color:#fff}
+  .ver a:hover{background:#fff1f7}
   #start .keys{margin-top:30px;font-size:12px;font-weight:600;line-height:2;opacity:.6}
   #start .keys a{color:inherit}
 
@@ -92,7 +98,7 @@
     <button class="b nav" id="bNext" title="下一首 N">⏭</button>
     <div id="time">0:00 / 0:00</div>
     <button class="b" id="bList" title="選歌 S">歌曲</button>
-    <a class="b" id="bPixel" href="pixel.html" title="原本的像素 MV">像素版</a>
+    <a class="b" id="bPixel" href="pixel.html" title="第二版本：像素 MV">第二版本</a>
     <button class="b" id="bFull" title="全螢幕 F">全螢幕</button>
     <div id="now"><span id="ttl">—</span><span id="cast"></span></div>
   </div>
@@ -100,13 +106,16 @@
 
 <div id="start">
   <div class="in">
+    <nav class="ver" aria-label="版本">
+      <span class="on">第一版本 · 二次元 PV</span><a href="pixel.html">第二版本 · 像素 MV</a>
+    </nav>
     <div class="kick">鋒 兄 宇 宙 · P V</div>
     <h2><span>選</span><span>一</span><span>首</span><span>歌</span></h2>
     <div class="pill">九首歌 · 九支二次元風 PV</div>
     <div id="grid"></div>
     <div class="keys">
       空白 播放／暫停　·　← → 倒退／快進 5 秒　·　S 選歌　·　N P 換歌　·　0–9 跳段　·　F 全螢幕<br>
-      想看原本的像素 MV：<a href="pixel.html">像素版</a>
+      第二版本是原本的像素 MV：<a href="pixel.html">切換到第二版本</a>
     </div>
   </div>
 </div>
