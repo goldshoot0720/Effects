@@ -50,11 +50,70 @@ let W = 0, H = 0, BW = 0, BH = 0, SC = 1, port = false;
 let QUAL = clamp(Math.round(parseFloat(store.get('px.qual')) || 1), 0, 2);
 const QNAME = ['粗', '中', '細'];
 const BASE = [160, 224, 292];
+let INSET = { t: 0, r: 0, b: 0, l: 0 };
+let coverDirty = true, coverTarget = 0, coverNow = 0;
 
+function readInsets() {
+  const probe = $('#safe');
+  const cs = probe ? getComputedStyle(probe) : null;
+  const cssW = parseFloat(cvs.style.width) || innerWidth || 1;
+  const cssH = parseFloat(cvs.style.height) || innerHeight || 1;
+  const n = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
+  if (!cs || BH < 2) { INSET = { t: 0, r: 0, b: 0, l: 0 }; return; }
+  INSET = {
+    t: Math.round(n(cs.borderTopWidth) * BH / cssH),
+    r: Math.round(n(cs.borderRightWidth) * BW / cssW),
+    b: Math.round(n(cs.borderBottomWidth) * BH / cssH),
+    l: Math.round(n(cs.borderLeftWidth) * BW / cssW)
+  };
+}
+
+/* How many buffer pixels the HTML chrome (or the home indicator, once
+   the chrome has faded) occupies. Subtitles sit above that. */
+function chromeCoverTarget() {
+  const phone = matchMedia('(max-width: 820px), (max-height: 500px)').matches;
+  if (!phone || document.body.classList.contains('chrome-off')) return INSET.b;
+  const bar = $('#bottom');
+  const cssH = bar ? bar.getBoundingClientRect().height : 0;
+  const cssView = parseFloat(cvs.style.height) || innerHeight || 1;
+  return Math.max(INSET.b, Math.round(cssH * BH / Math.max(1, cssView)));
+}
+function chromeCover() {
+  if (coverDirty) { coverDirty = false; coverTarget = chromeCoverTarget(); }
+  coverNow += (coverTarget - coverNow) * .22;
+  if (Math.abs(coverTarget - coverNow) < .6) coverNow = coverTarget;
+  return coverNow;
+}
+
+function pinBox(el, x, y, w, h) {
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.width = w + 'px';
+  el.style.height = h + 'px';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+}
 function resize() {
+  const vv = window.visualViewport;
+  const vw = Math.max(2, vv ? vv.width : innerWidth);
+  const vh = Math.max(2, vv ? vv.height : innerHeight);
+  const ox = vv ? vv.offsetLeft : 0;
+  const oy = vv ? vv.offsetTop : 0;
+  const gap = Math.max(0, innerHeight - vh - oy);
+  pinBox(cvs, ox, oy, vw, vh);
+  const bottom = $('#bottom');
+  if (bottom) {
+    bottom.style.left = ox + 'px';
+    bottom.style.width = vw + 'px';
+    bottom.style.right = 'auto';
+    bottom.style.bottom = gap + 'px';
+  }
+  const start = $('#start');
+  if (start) pinBox(start, ox, oy, vw, vh);
+
   const dpr = Math.min(devicePixelRatio || 1, 2);
-  W = Math.max(2, Math.floor(innerWidth * dpr));
-  H = Math.max(2, Math.floor(innerHeight * dpr));
+  W = Math.max(2, Math.floor(vw * dpr));
+  H = Math.max(2, Math.floor(vh * dpr));
   cvs.width = W; cvs.height = H;
   const sc = Math.max(2, Math.round(Math.min(W, H) / BASE[QUAL]));
   const bw = Math.ceil(W / sc), bh = Math.ceil(H / sc);
@@ -63,8 +122,14 @@ function resize() {
     buf.width = BW; buf.height = BH;
     patterns.clear();
   }
+  readInsets();
+  coverDirty = true;
 }
 addEventListener('resize', resize);
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', resize);
+  visualViewport.addEventListener('scroll', resize);
+}
 
 /* ------------------------------ dither ----------------------------- */
 /* 4×4 ordered Bayer. `level` 0..16 is how many of the sixteen cells take
@@ -1051,7 +1116,7 @@ function paint() {
   }
 
   /* ---- chrome: the loading bar ---- */
-  const hw = Math.round(port ? BW * .5 : BW * .26), hx = 4, hy = 4;
+  const hw = Math.round(port ? BW * .5 : BW * .26), hx = 4 + INSET.l, hy = 4 + INSET.t;
   fill(hx, hy, hw, 11, P.sky);
   frame(hx, hy, hw, 11, P.lit, 1);
   text('P (' + S.tag + ')', hx + 3, hy + 2, 7, P.ink, 'left', 700);
@@ -1063,8 +1128,8 @@ function paint() {
   for (let i = 0; i < seg; i += 3) b.fillRect(hx + 1 + i, hy + 13, 2, 3);
 
   /* ---- the vertical shop banner ---- */
-  const bw2 = Math.max(13, Math.round(BW * .062)), bx = BW - bw2 - 4;
-  const by = Math.round(BH * (port ? .38 : .07));
+  const bw2 = Math.max(13, Math.round(BW * .062)), bx = BW - bw2 - 4 - INSET.r;
+  const by = Math.max(INSET.t + 2, Math.round(BH * (port ? .38 : .07)));
   const chars = [...S.banner];
   const fs = Math.max(7, Math.min(bw2 - 3, 11));
   const bh2 = chars.length * (fs + 2) + 6;
@@ -1078,9 +1143,9 @@ function paint() {
   // Size it to the visible rows; on short screens omit IN rather than
   // squeezing the lyrics into the gauges.
   const fsz = Math.max(7, Math.min(10, Math.round(BW * .024)));
-  const ww = Math.round(port ? BW - 10 : BW * .4);
-  const wx = port ? 5 : Math.round(BW - ww - bw2 - 9);
-  const wy = Math.round(port ? BH * .13 : 4);
+  const ww = Math.max(40, Math.round(port ? BW - 10 - INSET.l - INSET.r : BW * .4));
+  const wx = port ? 5 + INSET.l : Math.max(INSET.l + 4, Math.round(BW - ww - bw2 - 9 - INSET.r));
+  const wy = Math.round(port ? Math.max(BH * .13, INSET.t + 6) : 4 + INSET.t);
   const maxH = Math.round(BH * .42) - 8 - wy;
   const showIn = !!g.prev && !port && 13 + (fsz + 4) * 2 + 25 <= maxH;
   const wh = 13 + (fsz + 4) * (showIn ? 2 : 1) + 25;
@@ -1109,7 +1174,7 @@ function paint() {
     // Long spoken lines are the reason this wraps: shrinking a 60-character
     // narration to one row makes it unreadable, which is worse than two rows.
     const sub = g.line.text;
-    const maxW = BW - 14, big = Math.min(Math.round(BW * .072), 24);
+    const maxW = Math.max(20, BW - 14 - INSET.l - INSET.r), big = Math.min(Math.round(BW * .072), 24);
     let rows = [sub], fs2 = fitText(sub, big, maxW, 900);
     if (fs2 < big * .62) {
       const cs = [...sub];
@@ -1124,19 +1189,22 @@ function paint() {
       fs2 = Math.min(big, ...rows.map(r => fitText(r, big, maxW, 900)));
     }
     const lh = fs2 + 3, blockH = rows.length * lh;
-    const sy = BH - blockH - Math.round(BH * (port ? .09 : .11));
+    const base = Math.round(BH * (port ? .09 : .11));
+    const sy = Math.max(INSET.t + 18, BH - blockH - Math.max(base, chromeCover() + 4));
     // a solid plate, not a dithered one: a screen door behind the strokes
     // is what makes pixel type unreadable. Flat colour, no outline.
     fill(0, sy - 4, BW, blockH + 8, '#07060c');
     fill(0, sy - 5, BW, 1, P.warm);
+    const txc = INSET.l + (BW - INSET.l - INSET.r) / 2;
     for (let i = 0; i < rows.length; i++)
-      text(rows[i], BW / 2, sy + i * lh, fs2, P.ink, 'center', 900);
+      text(rows[i], txc, sy + i * lh, fs2, P.ink, 'center', 900);
   }
 
   /* ---- section stinger ---- */
   if (g.secAge < 1.4 && ((g.t * 8 | 0) % 2 || g.secAge < .4)) {
     textOut('SCENE ' + String(g.shotIdx + 1).padStart(2, '0'),
-            port ? BW - bw2 - 8 : BW * .5, Math.round(BH * .045), 8, P.warm, '#000',
+            port ? BW - bw2 - 8 - INSET.r : BW * .5,
+            Math.max(INSET.t + 2, Math.round(BH * .045)), 8, P.warm, '#000',
             port ? 'right' : 'center', 800);
   }
 
@@ -1237,7 +1305,9 @@ function applySong(d, autoplay) {
   SEC = d.sections || [];
   STORY = (window.MV_STORY && window.MV_STORY[d.id]) || window.MV_STORY.__default(d);
   STORY.shots.sort((a, c) => a.t - c.t);
-  audio.src = d.audio; audio.load();
+  const sameTake = autoplay && !audio.paused && audio.currentTime < 1.2 &&
+    (audio.src.endsWith('/' + d.audio) || audio.src.endsWith(d.audio));
+  if (!sameTake) { audio.src = d.audio; audio.load(); }
   clock = 0; resetOnsets(0);
   document.title = d.title + ' · 第二版本 · 像素 MV';
   $('#ttl').textContent = d.title;
@@ -1245,12 +1315,23 @@ function applySong(d, autoplay) {
   store.set('px.song', d.id);
   if (autoplay) play(); else { playing = false; $('#play').textContent = '▶'; }
 }
+const songWaiters = {};
+const songLoading = new Set();
 function ensureData(id, cb) {
   const bag = window.MV_SONG_DATA;
   if (bag && bag[id]) return cb(bag[id]);
+  (songWaiters[id] || (songWaiters[id] = [])).push(cb);
+  if (songLoading.has(id)) return;
+  songLoading.add(id);
   const s = document.createElement('script');
   s.src = 'data/song/' + id + '.js?v=' + VERSION;
-  s.onload = () => { const d = window.MV_SONG_DATA && window.MV_SONG_DATA[id]; if (d) cb(d); };
+  s.onload = () => {
+    songLoading.delete(id);
+    const d = window.MV_SONG_DATA && window.MV_SONG_DATA[id];
+    const list = songWaiters[id] || [];
+    songWaiters[id] = [];
+    if (d) list.forEach(fn => fn(d));
+  };
   document.head.appendChild(s);
 }
 function loadSong(i, autoplay) {
@@ -1260,8 +1341,14 @@ function loadSong(i, autoplay) {
   [...document.querySelectorAll('.card')].forEach((c, k) => c.classList.toggle('cur', k === songIdx));
   ensureData(meta.id, d => applySong(d, autoplay));
 }
-function play() { audio.play().then(() => { playing = true; $('#play').textContent = '❚❚'; }).catch(() => { }); }
-function pause() { audio.pause(); playing = false; $('#play').textContent = '▶'; }
+function play() {
+  const p = audio.play();
+  if (p && p.then) p.then(() => { playing = true; $('#play').textContent = '❚❚'; $('#play').setAttribute('aria-label', '暫停'); armChrome(); }).catch(() => { });
+  else { playing = true; $('#play').textContent = '❚❚'; armChrome(); }
+}
+function pause() {
+  audio.pause(); playing = false; $('#play').textContent = '▶'; $('#play').setAttribute('aria-label', '播放'); armChrome();
+}
 function toggle() { playing ? pause() : play(); }
 function seek(t) { t = clamp(t, 0, DUR - .05); audio.currentTime = t; clock = t; resetOnsets(t); }
 audio.addEventListener('ended', () => loadSong(songIdx + 1, true));
@@ -1277,13 +1364,49 @@ function buildCards() {
                   '<span class="t"></span><span class="c"></span>';
     d.querySelector('.t').textContent = s.title;
     d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
-    d.onclick = () => { hideList(); loadSong(i, true); };
+    d.onclick = () => {
+      hideList();
+      const ready = window.MV_SONG_DATA && window.MV_SONG_DATA[s.id];
+      if (!ready && s.audio) {
+        audio.src = s.audio;
+        const p = audio.play();
+        if (p && p.catch) p.catch(() => { });
+      }
+      loadSong(i, true);
+    };
     grid.appendChild(d);
   });
 }
 function listOpen() { return !$('#start').classList.contains('gone'); }
-function showList() { $('#start').classList.remove('gone'); }
-function hideList() { $('#start').classList.add('gone'); }
+function showList() { $('#start').classList.remove('gone'); armChrome(); }
+function hideList() { $('#start').classList.add('gone'); armChrome(); }
+
+/* Phones hide the transport while a song is playing so the subtitles
+   stay readable. A tap on the picture brings it back. */
+function chromeMQ() { return matchMedia('(hover: none) and (pointer: coarse)').matches; }
+let chromeTimer = 0, chromeHold = 0;
+function armChrome() {
+  document.body.classList.remove('chrome-off');
+  clearTimeout(chromeTimer);
+  coverDirty = true;
+  if (!chromeMQ() || !playing || listOpen() || chromeHold > 0) return;
+  chromeTimer = setTimeout(() => {
+    if (chromeHold > 0) { armChrome(); return; }
+    if (playing && !listOpen() && chromeMQ()) {
+      document.body.classList.add('chrome-off');
+      coverDirty = true;
+    }
+  }, 3200);
+}
+function toggleChrome() {
+  if (!chromeMQ()) return;
+  if (document.body.classList.contains('chrome-off')) armChrome();
+  else {
+    clearTimeout(chromeTimer);
+    document.body.classList.add('chrome-off');
+    coverDirty = true;
+  }
+}
 
 /* transport */
 $('#play').onclick = toggle;
@@ -1302,8 +1425,19 @@ $('#bCel').onclick = () => {
   $('#celName').textContent = CEL ? '手繪' : '立繪';
 };
 $('#bFull').onclick = () => {
-  if (document.fullscreenElement) document.exitFullscreen();
-  else document.documentElement.requestFullscreen().catch(() => { });
+  const el = document.documentElement;
+  const on = document.fullscreenElement || document.webkitFullscreenElement;
+  if (on) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+    return;
+  }
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return;
+  try {
+    const p = req.call(el);
+    if (p && p.catch) p.catch(() => { });
+  } catch (e) { }
 };
 const scrub = $('#scrub');
 function scrubTo(clientX) {
@@ -1312,6 +1446,20 @@ function scrubTo(clientX) {
 }
 scrub.addEventListener('pointerdown', e => { scrub.setPointerCapture(e.pointerId); scrubTo(e.clientX); });
 scrub.addEventListener('pointermove', e => { if (e.buttons) scrubTo(e.clientX); });
+
+const bottomBar = $('#bottom');
+bottomBar.addEventListener('pointerdown', () => { chromeHold++; armChrome(); });
+bottomBar.addEventListener('pointerup', () => { chromeHold = Math.max(0, chromeHold - 1); armChrome(); });
+bottomBar.addEventListener('pointercancel', () => { chromeHold = Math.max(0, chromeHold - 1); armChrome(); });
+let tap = null;
+cvs.addEventListener('pointerdown', e => { tap = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+cvs.addEventListener('pointerup', e => {
+  if (!tap || !chromeMQ() || listOpen()) { tap = null; return; }
+  const dt = performance.now() - tap.t;
+  const dist = Math.hypot(e.clientX - tap.x, e.clientY - tap.y);
+  tap = null;
+  if (dt < 350 && dist < 14) toggleChrome();
+});
 
 addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1349,5 +1497,11 @@ $('#celName').textContent = CEL ? '手繪' : '立繪';
 if (window.MV_PUPPET) MV_PUPPET.preload();
 const wanted = CAT.findIndex(s => s.id === store.get('px.song'));
 loadSong(wanted >= 0 ? wanted : 0, false);
+let prefetchI = 0;
+function prefetchNext() {
+  if (prefetchI >= CAT.length) return;
+  ensureData(CAT[prefetchI++].id, prefetchNext);
+}
+setTimeout(prefetchNext, 500);
 requestAnimationFrame(t => { last = t / 1000; requestAnimationFrame(frameLoop); });
 })();
