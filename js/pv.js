@@ -830,15 +830,27 @@ function apply(d, i) {
   for (const k in F) F[k] = 0;
   document.title = d.title + ' · 第一版本 · 二次元 PV';
 }
-// load a song by id (its data file on demand), then call back
+// load a song by id (its data file on demand), then call back.
+// repeated taps share one script tag so a slow phone does not inject it twice.
+const songWaiters = {};
+const songLoading = new Set();
 function load(id, cb) {
   const i = Math.max(0, CAT.findIndex(s => s.id === id));
   const meta = CAT[i];
+  if (!meta) return;
   const done = () => { apply(window.MV_SONG_DATA[meta.id], i); if (cb) cb(); };
   if (window.MV_SONG_DATA && window.MV_SONG_DATA[meta.id]) return done();
+  (songWaiters[id] || (songWaiters[id] = [])).push(done);
+  if (songLoading.has(id)) return;
+  songLoading.add(id);
   const s = document.createElement('script');
   s.src = 'data/song/' + meta.id + '.js?v=2.0.0';
-  s.onload = done;
+  s.onload = () => {
+    songLoading.delete(id);
+    const list = songWaiters[id] || [];
+    songWaiters[id] = [];
+    if (window.MV_SONG_DATA && window.MV_SONG_DATA[meta.id]) list.forEach(fn => fn());
+  };
   document.head.appendChild(s);
 }
 if (window.MV_PUPPET) MV_PUPPET.preload();
@@ -872,44 +884,82 @@ function player() {
   const $ = s => document.querySelector(s);
   const audio = new Audio();
   audio.preload = 'auto';
+  audio.playsInline = true;
   let T = 0, playing = false, anchor = 0, last = performance.now(), idx = 0, lastUi = '';
+  let unlockP = null, unlocking = false;
   const LEN = () => HEAD + DUR + TAIL;
   const fmt = v => Math.floor(v / 60) + ':' + p2(Math.floor(v % 60));
+  const audible = () => { const st = T - HEAD; return playing && st >= 0 && st < DUR - .05; };
+  // iOS only starts audio inside the tap. The title card is silent for a few
+  // seconds, so the tap plays the file muted (that unlocks the element) and
+  // the clock starts the real playback once the song begins.
+  function unlock(src) {
+    if (src && !String(audio.src || '').endsWith(src)) audio.src = src;
+    if (!audio.src) return;
+    const on = audible();
+    audio.muted = !on;
+    const p = audio.play();
+    unlockP = p;
+    unlocking = true;
+    const finish = () => {
+      if (unlockP !== p) return;
+      unlocking = false;
+      if (!audible()) audio.pause();
+      audio.muted = false;
+    };
+    if (p && p.then) p.then(finish).catch(() => { if (unlockP === p) { unlocking = false; audio.muted = false; } });
+    else { unlocking = false; audio.muted = false; }
+  }
 
   function syncAudio() {
     const st = T - HEAD;
     if (playing && st >= 0 && st < DUR - .05) {
+      audio.muted = false;
       if (Math.abs(audio.currentTime - st) > .3) audio.currentTime = st;
-      if (audio.paused) audio.play().catch(() => { });
-    } else if (!audio.paused) audio.pause();
+      if (audio.paused) { const p = audio.play(); if (p && p.catch) p.catch(() => { }); }
+    } else if (!audio.paused && !unlocking) audio.pause();
   }
   function seek(v) { T = clamp(v, 0, LEN() - .01); anchor = performance.now() - T * 1000; syncAudio(); }
   function play() {
     if (!SONG) return;
     if (T >= LEN() - .1) T = 0;
-    playing = true; seek(T); ui();
+    playing = true; seek(T);
+    if (!audible()) unlock(SONG.audio);
+    ui(); wake();
   }
-  function pause() { playing = false; audio.pause(); ui(); }
+  function pause() { playing = false; unlocking = false; audio.pause(); audio.muted = false; ui(); wake(); }
   const toggle = () => playing ? pause() : play();
   function pick(i, auto) {
     idx = ((i % CAT.length) + CAT.length) % CAT.length;
-    playing = false; audio.pause();
-    load(CAT[idx].id, () => {
-      audio.src = SONG.audio; T = 0;
+    const meta = CAT[idx];
+    if (!auto) { playing = false; unlocking = false; audio.pause(); }
+    load(meta.id, () => {
+      if (!(meta.audio && String(audio.src || '').endsWith(meta.audio))) audio.src = SONG.audio;
+      T = 0; anchor = performance.now();
       try { localStorage.setItem('pv.song', SONG.id); } catch (e) { }
       const u = new URL(location.href); u.searchParams.set('song', SONG.id); history.replaceState(null, '', u);
       document.querySelectorAll('.card').forEach((c, k) => c.classList.toggle('cur', k === idx));
       if ($('#ttl')) { $('#ttl').textContent = SONG.title; $('#cast').textContent = SONG.cast; }
-      if (auto) play(); else ui();
+      if (auto) play(); else { playing = false; audio.pause(); ui(); }
     });
   }
   function ui() {
-    if ($('#play')) $('#play').textContent = playing ? '❚❚' : '▶';
+    const b = $('#play');
+    if (b) { b.textContent = playing ? '❚❚' : '▶'; b.setAttribute('aria-label', playing ? '暫停' : '播放'); }
     document.documentElement.classList.toggle('playing', playing);
   }
   const listOpen = () => $('#start') && !$('#start').classList.contains('gone');
   const showList = () => $('#start') && $('#start').classList.remove('gone');
   const hideList = () => $('#start') && $('#start').classList.add('gone');
+  const coarse = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
+  // a tap that starts a song has to call play() itself; loading the score is async
+  function gesturePick(i) {
+    const n = ((i % CAT.length) + CAT.length) % CAT.length;
+    const meta = CAT[n];
+    playing = false;
+    if (meta && meta.audio) unlock(meta.audio);
+    pick(n, true);
+  }
 
   // the song cards
   const grid = $('#grid');
@@ -919,16 +969,27 @@ function player() {
     d.innerHTML = '<span class="n">PV ' + p2(i + 1) + '</span><span class="t"></span><span class="c"></span>';
     d.querySelector('.t').textContent = s.title;
     d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
-    d.onclick = () => { hideList(); pick(i, true); };
+    d.onclick = () => { hideList(); gesturePick(i); };
     grid.appendChild(d);
   });
   const on = (id, f) => { const e = $(id); if (e) e.onclick = f; };
   on('#play', () => { hideList(); toggle(); });
-  on('#bPrev', () => pick(idx - 1, true));
-  on('#bNext', () => pick(idx + 1, true));
+  on('#bPrev', () => gesturePick(idx - 1));
+  on('#bNext', () => gesturePick(idx + 1));
   on('#bList', () => listOpen() ? hideList() : showList());
-  on('#bFull', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => { }));
-  cvs.addEventListener('click', () => { if (!listOpen()) toggle(); });
+  on('#bFull', () => {
+    const el = document.documentElement;
+    const onFs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (onFs) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) { try { const p = exit.call(document); if (p && p.catch) p.catch(() => { }); } catch (e) { } }
+      return;
+    }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;
+    try { const p = req.call(el); if (p && p.catch) p.catch(() => { }); } catch (e) { }
+  });
+  cvs.addEventListener('click', () => { if (!listOpen() && !coarse()) toggle(); });
   const scrub = $('#scrub');
   if (scrub) {
     const to = x => { const r = scrub.getBoundingClientRect(); seek(LEN() * clamp((x - r.left) / r.width, 0, 1)); };
@@ -941,17 +1002,77 @@ function player() {
     if (k === ' ') { e.preventDefault(); hideList(); toggle(); }
     else if (k === 'arrowleft') seek(T - 5);
     else if (k === 'arrowright') seek(T + 5);
-    else if (k === 'n') pick(idx + 1, true);
-    else if (k === 'p') pick(idx - 1, true);
+    else if (k === 'n') gesturePick(idx + 1);
+    else if (k === 'p') gesturePick(idx - 1);
     else if (k === 's') listOpen() ? hideList() : showList();
     else if (k === 'f') $('#bFull') && $('#bFull').click();
     else if (k === 'escape') hideList();
     else if (/^[0-9]$/.test(k)) seek(LEN() * (+k) / 10);
   });
-  // the controls fade away while it plays and the mouse rests
-  let idle = 0;
-  const wake = () => { document.documentElement.classList.remove('idle'); clearTimeout(idle); idle = setTimeout(() => { if (playing) document.documentElement.classList.add('idle'); }, 2600); };
-  addEventListener('pointermove', wake); addEventListener('pointerdown', wake); wake();
+  // the controls fade away while it plays. On a phone, a short tap on the
+  // picture shows or hides them; the play button is what pauses.
+  let idle = 0, hold = 0;
+  function wake() {
+    document.documentElement.classList.remove('idle');
+    clearTimeout(idle);
+    const wait = coarse() ? 3200 : 2600;
+    idle = setTimeout(() => {
+      if (hold > 0) { wake(); return; }
+      if (playing && !listOpen()) document.documentElement.classList.add('idle');
+    }, wait);
+  }
+  addEventListener('pointermove', wake);
+  addEventListener('pointerdown', wake);
+  const bar = $('#bar');
+  if (bar) {
+    bar.addEventListener('pointerdown', () => { hold++; });
+    bar.addEventListener('pointerup', () => { hold = Math.max(0, hold - 1); wake(); });
+    bar.addEventListener('pointercancel', () => { hold = Math.max(0, hold - 1); wake(); });
+  }
+  let tap = null;
+  cvs.addEventListener('pointerdown', e => {
+    tap = { x: e.clientX, y: e.clientY, t: performance.now(), idle: document.documentElement.classList.contains('idle') };
+  });
+  cvs.addEventListener('pointerup', e => {
+    if (!tap || !coarse() || listOpen()) { tap = null; return; }
+    const dt = performance.now() - tap.t, dist = Math.hypot(e.clientX - tap.x, e.clientY - tap.y);
+    const wasIdle = tap.idle;
+    tap = null;
+    if (dt > 350 || dist > 14) return;
+    if (wasIdle) wake();
+    else { clearTimeout(idle); document.documentElement.classList.add('idle'); }
+  });
+  function pin() {
+    const vv = window.visualViewport;
+    const vw = Math.max(2, vv ? vv.width : innerWidth);
+    const vh = Math.max(2, vv ? vv.height : innerHeight);
+    const ox = vv ? vv.offsetLeft : 0, oy = vv ? vv.offsetTop : 0;
+    const gap = Math.max(0, innerHeight - vh - oy);
+    cvs.style.left = ox + 'px'; cvs.style.top = oy + 'px';
+    cvs.style.width = vw + 'px'; cvs.style.height = vh + 'px';
+    cvs.style.right = 'auto'; cvs.style.bottom = 'auto';
+    const start = $('#start');
+    if (start) {
+      start.style.left = ox + 'px'; start.style.top = oy + 'px';
+      start.style.width = vw + 'px'; start.style.height = vh + 'px';
+      start.style.right = 'auto'; start.style.bottom = 'auto';
+    }
+    if (!bar) return;
+    const probe = $('#safe'), cs = probe ? getComputedStyle(probe) : null;
+    const edge = side => { const n = cs ? parseFloat(cs.getPropertyValue('border-' + side + '-width')) : 0; return Number.isFinite(n) ? n : 0; };
+    const gutter = vw < 420 ? 12 : 24;
+    bar.style.width = Math.min(960, Math.max(120, vw - gutter - edge('left') - edge('right'))) + 'px';
+    bar.style.left = (ox + vw / 2) + 'px';
+    bar.style.bottom = (gap + Math.max(14, edge('bottom'))) + 'px';
+    bar.style.right = 'auto'; bar.style.top = 'auto';
+  }
+  addEventListener('resize', pin);
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', pin);
+    visualViewport.addEventListener('scroll', pin);
+  }
+  pin();
+  wake();
 
   function tick(now) {
     requestAnimationFrame(tick);
