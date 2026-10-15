@@ -93,6 +93,22 @@ node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查
 | `F` | 全螢幕 | | `C` | 立繪人偶／手繪賽璐璐 |
 | `L` | 角色表（八人齊跳） | | | |
 
+## 手足舞蹈素材庫（dance.html）
+
+八支角色姿勢影片抽出來的關鍵格，當作編舞的參考材料。每位班底一支影片：開頭 **T-pose**、
+接著 **A-pose**、幾個 **手足手勢**，最後收在 **特寫**。從 `0.2s` 起每 `1.2s` 取一格，共 **12 格**，
+八位合計 **96 格**。
+
+* `dance.html`：淺色素材庫，可依姿勢分類（骨架校準／基本站姿／手足舞步／表情特寫）篩選，
+  點開看大圖、對應的 `MOVES` 舞步名與影片時間點。
+* `art/dance/<id>/`：抽格檔（`pose_01.jpg` … `pose_12.jpg`）＋ `sheet.jpg` 接觸表。
+* `data/dance_ref.js`：素材索引，由 `tools/build_dance_ref.py` 從抽格檔掃出來。
+* `DANCE.md`：影片→角色對照、姿勢→舞步對照表，以及怎麼把新姿勢寫進 `js/puppet.js`。
+
+```bash
+python tools/build_dance_ref.py     # 重建 data/dance_ref.json / .js
+```
+
 ## 本機執行
 
 雙擊 **`本地測試.bat`** 用預設瀏覽器打開二次元 PV（`file://`，不需要伺服器）；
@@ -109,6 +125,11 @@ node tools/render_pv.js --preview s023  # 每個段落各輸出一張 JPG 檢查
 ```
 index.html            首頁第一版本：二次元風 PV 播放器（UI / 樣式）
 pixel.html            首頁第二版本：像素 MV（UI / 樣式）
+dance.html            手足舞蹈素材庫：八位班底的姿勢關鍵格瀏覽頁
+DANCE.md              素材說明：影片→角色、姿勢→舞步對照與編舞方式
+art/dance/<id>/       八支角色姿勢影片抽出的關鍵格（每位 12 格 + 接觸表）
+data/dance_ref.js     素材索引（由 tools/build_dance_ref.py 產生）
+tools/build_dance_ref.py  掃描 art/dance/ 產生素材索引
 js/px.js              像素引擎：緩衝區、網點、賽璐璐人物、對話視窗、播放器
 js/puppet.js          T-pose 人偶：WebGL2 蒙皮、骨架、舞步（MOVES / ROUTINE）
 js/story.js           九首歌的世界觀、色盤、角色表與分鏡，各語言沿用原曲並依全曲長度調整分鏡

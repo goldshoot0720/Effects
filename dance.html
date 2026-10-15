@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fff4fa">
+<meta name="color-scheme" content="light">
+<title>鋒兄宇宙 · 手足舞蹈素材庫</title>
+<style>
+  :root{
+    --ink:#2a1d3a; --paper:#fffafc; --pink:#ff5f95; --blue:#38c6ff; --gold:#ffc23a; --purple:#8f6bff; --green:#3ddc97;
+    --line:rgba(42,29,58,.16);
+    --ui:"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei UI","PingFang TC",system-ui,sans-serif;
+    --sat:env(safe-area-inset-top,0px); --sar:env(safe-area-inset-right,0px);
+    --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{min-height:100dvh;color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;
+    background:radial-gradient(circle at 20% 10%,#ffffff 0,#fff4fa 34%,#e7f6ff 100%);background-attachment:fixed}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;z-index:0;
+    background-image:radial-gradient(rgba(255,95,149,.3) 2px,transparent 2.5px);background-size:40px 40px}
+  .in{position:relative;z-index:1;max-width:1180px;margin:0 auto;
+    padding:calc(clamp(22px,5vh,52px) + var(--sat)) calc(18px + var(--sar)) calc(60px + var(--sab)) calc(18px + var(--sal))}
+
+  .ver{display:inline-flex;margin-bottom:20px;border:3px solid var(--ink);border-radius:999px;overflow:hidden;
+    background:#fff;box-shadow:4px 5px 0 rgba(42,29,58,.3);font-weight:900;font-size:14px;letter-spacing:.06em}
+  .ver>*{padding:9px 20px;color:var(--ink);text-decoration:none}
+  .ver .on{background:var(--purple);color:#fff}
+  .kick{font-size:12px;font-weight:800;letter-spacing:.5em;opacity:.55}
+  h1{margin-top:10px;font-size:clamp(32px,6.4vw,64px);font-weight:900;line-height:1.12;letter-spacing:.03em}
+  h1 span{display:inline-block;-webkit-text-stroke:9px #fff;paint-order:stroke fill}
+  h1 span:nth-child(5n+1){color:var(--pink)} h1 span:nth-child(5n+2){color:var(--blue)}
+  h1 span:nth-child(5n+3){color:var(--gold)} h1 span:nth-child(5n+4){color:var(--purple)}
+  h1 span:nth-child(5n+5){color:var(--green)}
+  .pill{display:inline-block;margin-top:16px;padding:8px 22px;border:3px solid var(--ink);border-radius:999px;
+    background:#fff;font-weight:800;font-size:14px;letter-spacing:.1em;box-shadow:4px 5px 0 rgba(42,29,58,.3)}
+  .lead{margin-top:18px;font-size:14px;font-weight:600;line-height:1.9;opacity:.72;max-width:70ch}
+
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+  .chip{appearance:none;border:2.5px solid var(--ink);background:#fff;color:var(--ink);font-family:var(--ui);
+    font-size:13px;font-weight:800;letter-spacing:.06em;border-radius:999px;padding:7px 15px;cursor:pointer;
+    box-shadow:3px 3px 0 rgba(42,29,58,.22);transition:transform .12s,background .12s}
+  .chip:active{transform:translateY(1px)}
+  .chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+  .chip .k{margin-left:7px;opacity:.6;font-variant-numeric:tabular-nums}
+  .chip[aria-pressed="true"] .k{opacity:.75}
+
+  .cast{margin-top:34px;border:3px solid var(--ink);border-radius:20px;background:#fff;overflow:hidden;
+    box-shadow:7px 8px 0 rgba(42,29,58,.24)}
+  .cast>header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 18px;
+    border-bottom:3px solid var(--ink);background:var(--pink);color:#fff}
+  .cast:nth-of-type(4n+2)>header{background:var(--blue)}
+  .cast:nth-of-type(4n+3)>header{background:var(--gold);color:var(--ink)}
+  .cast:nth-of-type(4n)>header{background:var(--purple)}
+  .cast>header h2{font-size:20px;font-weight:900;letter-spacing:.04em}
+  .cast>header .id{font-size:12px;font-weight:800;letter-spacing:.2em;opacity:.8}
+  .cast>header .cnt{margin-left:auto;font-size:12px;font-weight:800;letter-spacing:.1em;opacity:.9}
+  .cast .note{padding:12px 18px 0;font-size:13px;font-weight:600;line-height:1.85;opacity:.7}
+
+  .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;padding:14px 18px 18px}
+  .pose{appearance:none;padding:0;border:2.5px solid var(--ink);border-radius:14px;background:#fff;
+    color:var(--ink);font-family:var(--ui);cursor:pointer;overflow:hidden;text-align:left;
+    box-shadow:3px 3px 0 rgba(42,29,58,.2);transition:transform .13s;display:flex;flex-direction:column}
+  .pose:hover{transform:translateY(-3px)}
+  .pose:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .pose .thumb{position:relative;display:block;aspect-ratio:768/1168;background:#f4f1f6;overflow:hidden}
+  .pose .thumb img{width:100%;height:100%;object-fit:cover;object-position:50% 12%;display:block}
+  .pose .badge{position:absolute;left:6px;top:6px;font-size:10px;font-weight:900;letter-spacing:.08em;
+    padding:3px 8px;border-radius:999px;border:2px solid var(--ink);background:#fff;color:var(--ink)}
+  .pose .badge.calib{background:var(--blue);color:#fff}
+  .pose .badge.base{background:#e9e5ef}
+  .pose .badge.move{background:var(--pink);color:#fff}
+  .pose .badge.face{background:var(--gold)}
+  .pose .meta{display:block;padding:7px 9px 8px}
+  .pose .lb{display:block;font-size:12px;font-weight:800;line-height:1.45}
+  .pose .mv{display:inline-block;margin-top:5px;font-size:10px;font-weight:900;letter-spacing:.06em;
+    padding:2px 7px;border-radius:999px;background:#f0ecf6;border:1.5px solid var(--line)}
+  .pose .mv.on{background:#e6fff4;border-color:#8fe0c0;color:#1c6b4a}
+  .pose .n{position:absolute;right:6px;bottom:6px;font-size:10px;font-weight:900;padding:2px 7px;border-radius:999px;
+    background:rgba(42,29,58,.72);color:#fff;letter-spacing:.06em}
+
+  .foot{margin-top:36px;font-size:12px;font-weight:600;line-height:2;opacity:.62}
+  .foot code{font-family:ui-monospace,Menlo,monospace;background:#fff;border:1.5px solid var(--line);
+    border-radius:6px;padding:1px 6px;font-size:11px}
+
+  /* lightbox */
+  #lb{position:fixed;inset:0;z-index:60;display:none;background:rgba(26,16,40,.62);backdrop-filter:blur(6px);
+    align-items:center;justify-content:center;padding:24px}
+  #lb.on{display:flex}
+  #lb .box{display:flex;gap:0;max-width:min(880px,100%);max-height:min(88dvh,100%);background:#fff;
+    border:3px solid var(--ink);border-radius:20px;overflow:hidden;box-shadow:8px 9px 0 rgba(0,0,0,.35)}
+  #lb .fig{background:#f4f1f6;display:flex;align-items:center;justify-content:center;min-width:0}
+  #lb .fig img{display:block;max-height:min(88dvh,760px);max-width:100%;width:auto}
+  #lb .side{width:260px;flex:0 0 auto;padding:18px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+  #lb .side .who{font-size:12px;font-weight:900;letter-spacing:.2em;opacity:.55}
+  #lb .side h3{font-size:19px;font-weight:900;line-height:1.35}
+  #lb .side .kv{font-size:12px;font-weight:700;line-height:1.9;opacity:.72}
+  #lb .side .mv2{font-size:13px;font-weight:800;padding:8px 12px;border-radius:12px;background:#f0ecf6;border:2px solid var(--line)}
+  #lb .side .mv2.on{background:#e6fff4;border-color:#8fe0c0;color:#1c6b4a}
+  #lb .side .close{margin-top:auto;appearance:none;border:2.5px solid var(--ink);background:#fff;color:var(--ink);
+    font-family:var(--ui);font-weight:900;font-size:13px;border-radius:999px;padding:9px 16px;cursor:pointer}
+  @media (max-width:720px){
+    #lb .box{flex-direction:column;max-height:92dvh}
+    #lb .fig img{max-height:56dvh}
+    #lb .side{width:auto;flex:0 0 auto}
+    .cast>header .cnt{margin-left:0;width:100%}
+  }
+</style>
+</head>
+<body>
+<div class="in">
+  <nav class="ver" aria-label="版本">
+    <a href="index.html">第一版本 · 二次元 PV</a>
+    <a href="pixel.html">第二版本 · 像素 MV</a>
+    <span class="on">手足舞蹈素材庫</span>
+  </nav>
+  <div class="kick">鋒 兄 宇 宙 · D A N C E &nbsp; R E F</div>
+  <h1><span>手</span><span>足</span><span>舞</span><span>蹈</span><span>素</span><span>材</span><span>庫</span></h1>
+  <div class="pill" id="count">— 位班底 · — 個姿勢</div>
+  <p class="lead">八支角色姿勢影片抽出來的關鍵格：每位班底從 T-pose 起手，經過 A-pose、幾個手足手勢，最後收在特寫。
+     每一格都標了姿勢分類與對應的舞步名（<code>js/puppet.js</code> 的 <code>MOVES</code>），編舞時直接挑一格當參考。</p>
+
+  <div class="filters" id="filters"></div>
+  <div id="cast"></div>
+
+  <div class="foot">
+    素材：<code>art/dance/&lt;id&gt;/</code>（每位 12 格 + 接觸表）· 索引：<code>data/dance_ref.js</code>（由 <code>tools/build_dance_ref.py</code> 產生）<br>
+    原始影片為 768×1168 / 24fps / 15 秒，抽格時間點 0.2s 起每 1.2s 一格。
+  </div>
+</div>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="姿勢檢視">
+  <div class="box">
+    <div class="fig"><img id="lbimg" alt=""></div>
+    <div class="side">
+      <div class="who" id="lbwho"></div>
+      <h3 id="lblb"></h3>
+      <div class="mv2" id="lbmv"></div>
+      <div class="kv" id="lbkv"></div>
+      <button class="close" id="lbclose">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script src="data/dance_ref.js?v=1.0.0"></script>
+<script>
+(function () {
+  'use strict';
+  var D = window.DANCE_REF;
+  if (!D) { document.getElementById('cast').textContent = '找不到 data/dance_ref.js'; return; }
+
+  var KIND = [
+    { id: 'calib', name: '骨架校準' },
+    { id: 'base',  name: '基本站姿' },
+    { id: 'move',  name: '手足舞步' },
+    { id: 'face',  name: '表情特寫' }
+  ];
+
+  var total = D.totalPoses;
+  document.getElementById('count').textContent = D.cast.length + ' 位班底 · ' + total + ' 個姿勢';
+
+  /* filter chips */
+  var filter = 'all';
+  var fwrap = document.getElementById('filters');
+  function countOf(k) { return D.cast.reduce(function (n, c) { return n + c.poses.filter(function (p) { return p.kind === k; }).length; }, 0); }
+  var chips = [{ id: 'all', name: '全部', n: total }].concat(KIND.map(function (k) { return { id: k.id, name: k.name, n: countOf(k.id) }; }));
+  chips.forEach(function (c) {
+    var b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(c.id === filter));
+    b.innerHTML = c.name + '<span class="k">' + c.n + '</span>';
+    b.addEventListener('click', function () {
+      filter = c.id;
+      [].forEach.call(fwrap.children, function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      apply();
+    });
+    fwrap.appendChild(b);
+  });
+
+  /* cast sections */
+  var wrap = document.getElementById('cast');
+  var sections = [];
+  D.cast.forEach(function (c) {
+    var sec = document.createElement('section');
+    sec.className = 'cast';
+
+    var hd = document.createElement('header');
+    hd.innerHTML = '<h2>' + c.name + '</h2><span class="id">' + c.id.toUpperCase() + '</span>' +
+                   '<span class="cnt">' + c.poses.length + ' 格</span>';
+    sec.appendChild(hd);
+
+    var note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = c.note;
+    sec.appendChild(note);
+
+    var row = document.createElement('div');
+    row.className = 'row';
+    c.poses.forEach(function (p) {
+      var b = document.createElement('button');
+      b.className = 'pose';
+      b.type = 'button';
+      b.dataset.kind = p.kind;
+      b.innerHTML =
+        '<span class="thumb"><img loading="lazy" src="' + p.file + '" alt="' + c.name + ' ' + p.label + '">' +
+        '<span class="badge ' + p.kind + '">' + p.kindName + '</span>' +
+        '<span class="n">' + String(p.n).padStart(2, '0') + '</span></span>' +
+        '<span class="meta"><span class="lb">' + p.label + '</span>' +
+        '<span class="mv' + (p.move !== '-' ? ' on' : '') + '">' + (p.move !== '-' ? 'MOVES · ' + p.move : '待編舞步') + '</span></span>';
+      b.addEventListener('click', function () { open(c, p); });
+      row.appendChild(b);
+    });
+    sec.appendChild(row);
+    wrap.appendChild(sec);
+    sections.push(sec);
+  });
+
+  function apply() {
+    sections.forEach(function (sec) {
+      var shown = 0;
+      [].forEach.call(sec.querySelectorAll('.pose'), function (el) {
+        var ok = filter === 'all' || el.dataset.kind === filter;
+        el.style.display = ok ? '' : 'none';
+        if (ok) shown++;
+      });
+      sec.style.display = shown ? '' : 'none';
+    });
+  }
+
+  /* lightbox */
+  var lb = document.getElementById('lb');
+  var img = document.getElementById('lbimg');
+  function open(c, p) {
+    img.src = p.file;
+    img.alt = c.name + ' ' + p.label;
+    document.getElementById('lbwho').textContent = c.name + ' · ' + c.id.toUpperCase();
+    document.getElementById('lblb').textContent = String(p.n).padStart(2, '0') + '　' + p.label;
+    var mv = document.getElementById('lbmv');
+    mv.textContent = p.move !== '-' ? '對應舞步：MOVES.' + p.move : '尚未對應舞步（DANCE.md 列為候選）';
+    mv.className = 'mv2' + (p.move !== '-' ? ' on' : '');
+    document.getElementById('lbkv').innerHTML =
+      '分類：' + p.kindName + '<br>影片時間：' + p.t.toFixed(1) + 's<br>尺寸：' + p.w + '×' + p.h +
+      '<br>檔案：' + p.file;
+    lb.classList.add('on');
+  }
+  function close() { lb.classList.remove('on'); img.removeAttribute('src'); }
+  document.getElementById('lbclose').addEventListener('click', close);
+  lb.addEventListener('click', function (e) { if (e.target === lb) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+</script>
+</body>
+</html>
