@@ -2,6 +2,7 @@
 /artifacts/
 [Bb]in/
 [Oo]bj/
+__pycache__/
 
 # locally downloaded Android SDK (API 34) used by the release build
 /.android-sdk/

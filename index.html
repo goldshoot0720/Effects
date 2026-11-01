@@ -51,7 +51,9 @@
   button.b.on{border-color:rgba(255,210,74,.8);color:var(--gold);background:rgba(255,210,74,.12)}
   #play{width:52px;height:52px;border-radius:50%;padding:0;font-size:17px;flex:0 0 auto;
     border-color:rgba(255,210,74,.55);color:var(--gold);background:rgba(255,210,74,.1)}
-  .nav{width:38px;height:38px;border-radius:50%;padding:0;font-size:12px;flex:0 0 auto}
+  .song-nav{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:8px 12px;
+    font-size:10px;letter-spacing:.12em;flex:0 0 auto}
+  .song-nav .nav-icon{font-size:13px;letter-spacing:0;line-height:1}
   .skip{padding:10px 13px;font-size:11px;letter-spacing:.08em;flex:0 0 auto;
     font-variant-numeric:tabular-nums}
   .skip:active{transform:scale(.94)}
@@ -61,6 +63,12 @@
   #goto:focus{border-color:rgba(255,210,74,.8);color:var(--gold);
     background:rgba(255,210,74,.1)}
   #time{font-size:12px;letter-spacing:.14em;color:var(--dim);font-variant-numeric:tabular-nums;min-width:112px}
+  .volume{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:4px 9px 4px 5px;
+    border:1px solid var(--line);border-radius:999px;background:var(--glass);backdrop-filter:blur(12px)}
+  #mute{width:30px;height:30px;padding:0;border-color:transparent;background:transparent;font-size:14px;letter-spacing:0}
+  #mute:hover{border-color:rgba(255,210,74,.4);background:rgba(255,210,74,.08)}
+  #volume{width:86px;accent-color:var(--gold);cursor:pointer}
+  #volumeValue{width:31px;font-size:10px;letter-spacing:.04em;color:var(--dim);font-variant-numeric:tabular-nums}
   #now{margin-left:auto;font-size:12px;letter-spacing:.2em;color:var(--dim);
     max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
 
@@ -134,10 +142,15 @@
     #row{gap:8px;margin-top:8px}
     button.b{font-size:10px;padding:8px 11px;letter-spacing:.12em}
     #play{width:46px;height:46px}
-    .nav{width:34px;height:34px}
+    .song-nav{min-height:34px;padding:7px 9px;font-size:9px;gap:4px}
+    .song-nav .nav-icon{font-size:12px}
     .skip{padding:9px 10px;font-size:10px}
     #goto{width:84px;font-size:10px;padding:8px 6px}
     #time{font-size:11px;min-width:96px}
+    .volume{min-height:34px;gap:6px;padding:3px 7px 3px 4px}
+    #mute{width:28px;height:28px}
+    #volume{width:68px}
+    #volumeValue{font-size:9px;width:28px}
     #marks b{display:none}
   }
 </style>
@@ -167,12 +180,21 @@
     <div class="head" id="head"></div>
   </div>
   <div id="row">
-    <button class="b nav" id="bPrev" title="上一首 P">⏮</button>
+    <button class="b song-nav" id="bPrev" type="button" title="上一首 P" aria-label="上一首">
+      <span class="nav-icon" aria-hidden="true">⏮</span><span>上一首</span>
+    </button>
     <button class="b skip" id="bBack10" title="倒退 10 秒 ←">↺ 10</button>
     <button class="b" id="play">▶</button>
     <button class="b skip" id="bFwd10" title="快進 10 秒 →">10 ↻</button>
-    <button class="b nav" id="bNext" title="下一首 N">⏭</button>
+    <button class="b song-nav" id="bNext" type="button" title="下一首 N" aria-label="下一首">
+      <span>下一首</span><span class="nav-icon" aria-hidden="true">⏭</span>
+    </button>
     <div id="time">0:00 / 0:00</div>
+    <div class="volume" role="group" aria-label="音量控制">
+      <button class="b" id="mute" type="button" title="靜音" aria-label="靜音" aria-pressed="false">🔊</button>
+      <input id="volume" type="range" min="0" max="100" value="80" step="1" aria-label="音量">
+      <output id="volumeValue" for="volume">80%</output>
+    </div>
     <input id="goto" class="b" type="text" inputmode="numeric" autocomplete="off"
            spellcheck="false" maxlength="9" placeholder="跳到 1:23" title="輸入時間後按 Enter 跳轉">
     <button class="b" id="bList">歌曲 S</button>
@@ -205,10 +227,10 @@
   <div class="in">
     <div class="kicker">鋒 兄 宇 宙 · 3 D 音 樂 視 覺</div>
     <h2>選一首歌</h2>
-    <div class="sub">CANVAS 3D MOTION GRAPHICS · 音樂視覺同步</div>
+    <div class="sub">CANVAS 3D MOTION GRAPHICS · <span id="songCount">0</span> 首曲目 · 音樂視覺同步</div>
     <div id="grid"></div>
     <div class="keys">
-      <kbd>空白</kbd> 播放/暫停　<kbd>←</kbd><kbd>→</kbd> 倒退 / 快進 10 秒　<kbd>S</kbd> 選歌　<kbd>L</kbd> 字幕　<kbd>F</kbd> 全螢幕　<kbd>Q</kbd> 畫質<br>
+      <kbd>空白</kbd> 播放/暫停　<kbd>←</kbd><kbd>→</kbd> 倒退 / 快進 10 秒　<kbd>P</kbd><kbd>N</kbd> 上一首 / 下一首　<kbd>S</kbd> 選歌　<kbd>L</kbd> 字幕　<kbd>F</kbd> 全螢幕　<kbd>Q</kbd> 畫質<br>
       下方輸入框可直接打 <kbd>1:23</kbd> 或秒數按 Enter 跳轉　
       <kbd>E</kbd> 歌詞校時（可自己敲準時間軸後匯出 .lrc）　拖曳 .lrc 進畫面即可套用
     </div>
@@ -216,7 +238,7 @@
 </div>
 
 <audio id="audio" preload="auto"></audio>
-<script src="data/songs.js?v=1.0.4"></script>
-<script src="js/engine.js?v=1.0.4"></script>
+<script src="data/songs.js?v=1.0.5"></script>
+<script src="js/engine.js?v=1.0.5"></script>
 </body>
 </html>

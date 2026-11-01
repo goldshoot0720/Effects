@@ -23,7 +23,10 @@ import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(os.path.expanduser('~'), 'Music')
+# Override this when working from a checked-out or CI-provided source folder.
+# The existing default keeps the original local workflow intact.
+SRC = os.environ.get('EFFECTS_SONG_SOURCE', os.path.join(os.path.expanduser('~'), 'Music'))
+LYRICS = os.path.join(ROOT, 'data', 'lyrics')
 SR = 22050
 BAND_FPS = 30          # spectrum frames per second
 RMS_FPS = 60           # loudness frames per second
@@ -41,6 +44,12 @@ SONGS = [
     ('s101', '我與國中畢業紀念冊的對話', '我與國中畢業紀念冊的對話', '鋒兄', 'memo', '翻開那一頁 全部都回來了'),
     ('s102', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥',
      '鋒兄 · 塗哥', 'money', '中獎是日常 不是意外'),
+    ('s103', 's103', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（英文歌詞）',
+     '鋒兄 · 塗哥 · 布布', 'money', 'Lucky cat Bu Bu brings you blessings'),
+    ('s104', 's104', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（日文歌詞）',
+     '鋒兄 · 塗哥 · 布布', 'money', 'ねこのブブ ふくをはこぶ'),
+    ('s105', 's105', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（粵文歌詞）',
+     '鋒兄 · 塗哥 · 布布', 'money', '招財喵布布送嚟祝福滿滿'),
 ]
 # a song's .lrc may sit next to the mp3 under a slightly different name
 LRC_OVERRIDE = {'s029': '最瞎結婚理由 鋒兄 小塗 牙妹 魚妹'}
@@ -205,6 +214,25 @@ def parse_lrc(path, duration):
     return lines, sections
 
 
+def write_catalogue(catalogue, only):
+    """Write every entry, or merge a one-song rebuild into the catalogue."""
+    catalogue_path = os.path.join(ROOT, 'data', 'songs.js')
+    if only and os.path.exists(catalogue_path):
+        source = open(catalogue_path, encoding='utf-8').read()
+        match = re.match(r'^window\.MV_SONGS=(.*);\s*$', source, re.S)
+        if match:
+            existing = json.loads(match.group(1))
+            updates = {song['id']: song for song in catalogue}
+            merged = [updates.pop(song['id'], song) for song in existing]
+            merged.extend(updates.values())
+            catalogue = merged
+
+    with open(catalogue_path, 'w', encoding='utf-8') as f:
+        f.write('window.MV_SONGS=%s;\n'
+                % json.dumps(catalogue, ensure_ascii=False, separators=(',', ':')))
+    return len(catalogue)
+
+
 def build(only=None):
     os.makedirs(os.path.join(ROOT, 'audio'), exist_ok=True)
     os.makedirs(os.path.join(ROOT, 'data', 'song'), exist_ok=True)
@@ -213,7 +241,11 @@ def build(only=None):
         if only and sid != only:
             continue
         mp3 = os.path.join(SRC, stem + '.mp3')
-        lrc = os.path.join(SRC, LRC_OVERRIDE.get(sid, stem) + '.lrc')
+        # Canonical lyrics live in the repository when available; older songs
+        # still fall back to the user's Music folder without migration.
+        checked_in_lrc = os.path.join(LYRICS, sid + '.lrc')
+        lrc = checked_in_lrc if os.path.exists(checked_in_lrc) else os.path.join(
+            SRC, LRC_OVERRIDE.get(sid, stem) + '.lrc')
         if not os.path.exists(mp3):
             print('  !! missing mp3:', mp3)
             continue
@@ -249,11 +281,9 @@ def build(only=None):
                           'lines': len(lines), 'bpm': an['bpm'],
                           'src': 'data/song/%s.js' % sid, 'audio': 'audio/%s.mp3' % sid})
 
-    if not only:
-        with open(os.path.join(ROOT, 'data', 'songs.js'), 'w', encoding='utf-8') as f:
-            f.write('window.MV_SONGS=%s;\n'
-                    % json.dumps(catalogue, ensure_ascii=False, separators=(',', ':')))
-        print('\ncatalogue: %d songs' % len(catalogue))
+    if catalogue:
+        total = write_catalogue(catalogue, only)
+        print('\ncatalogue: %d songs' % total)
 
 
 if __name__ == '__main__':

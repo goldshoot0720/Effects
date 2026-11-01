@@ -1,6 +1,6 @@
 # Effects · 鋒兄宇宙 3D MV
 
-把 9 首歌做成一個 **3D 音樂視覺網站**（類似 After Effects 的動態圖像），
+把 12 首歌做成一個 **3D 音樂視覺網站**（類似 After Effects 的動態圖像），
 同一份內容再包成 **Windows 桌面程式（Avalonia）** 與 **Android APP**。
 
 * 線上版：<https://effects-nine.vercel.app>
@@ -20,7 +20,7 @@
 * **場景特效**：星空隧道、透視地板網格、環形頻譜、3D 線框多面體、節拍光柱、
   衝擊波環、光暈 bokeh、主題符號粒子、紅線、今彩 539 彩球、囍字彩帶、
   泛光 bloom、暗角、顆粒與電影黑邊。
-* **每首歌獨立主題**：9 套配色與符號（婚禮、百年夢、水電、喵、頭獎、爆紅、進化、
+* **每首歌獨立主題**：12 首歌、9 套配色與符號（婚禮、百年夢、水電、喵、頭獎、爆紅、進化、
   紀念冊、發票）。
 * **歌詞校時工具**：按 `E` 進入校時模式，用空白鍵敲點每句開始時間，可匯出 `.lrc`；
   也可以直接把 `.lrc` 拖進畫面套用。
@@ -56,6 +56,7 @@ index.html            主頁面（UI / 樣式）
 js/engine.js          3D 引擎、字幕動畫、特效、播放器
 data/songs.js         歌曲目錄
 data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
+data/lyrics/<id>.lrc  可重建曲目的校時歌詞來源
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
 serve.py              支援 Range 的小型靜態伺服器
@@ -66,7 +67,7 @@ scripts/build-release.ps1   打包 .zip 與 .apk
 
 ## 新增一首歌
 
-1. 把 `曲名.mp3` 與 `曲名.lrc` 放到 `%USERPROFILE%\Music`。
+1. 把 `曲名.mp3` 放到 `%USERPROFILE%\Music`，並將校時歌詞放到 `data/lyrics/<id>.lrc`。
 2. 在 `tools/build_songs.py` 的 `SONGS` 清單加一行（id、檔名、標題、演出者、主題、副標）。
 3. 執行：
 

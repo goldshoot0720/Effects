@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1180,6 +1180,47 @@ const audio = $('#audio');
 let clock = 0, playing = false, last = performance.now() / 1000;
 let OFFSET = 0, editing = false, editIdx = 0, lastIdx = -2, lastSec = -2;
 
+const volumeInput = $('#volume'), volumeValue = $('#volumeValue'), muteButton = $('#mute');
+const VOLUME_KEY = 'mv.volume';
+let lastAudibleVolume = .8;
+
+function renderVolume() {
+  const volume = audio.muted ? 0 : audio.volume;
+  const pct = Math.round(volume * 100);
+  volumeInput.value = pct;
+  volumeValue.value = `${pct}%`;
+  volumeValue.textContent = `${pct}%`;
+  muteButton.textContent = volume <= .001 ? '🔇' : volume < .5 ? '🔉' : '🔊';
+  muteButton.setAttribute('aria-pressed', String(audio.muted || audio.volume <= .001));
+  const label = audio.muted || audio.volume <= .001 ? '取消靜音' : '靜音';
+  muteButton.title = label;
+  muteButton.setAttribute('aria-label', label);
+}
+
+function setVolume(value, persist) {
+  const volume = clamp(Number(value) || 0, 0, 1);
+  audio.muted = false;
+  audio.volume = volume;
+  if (volume > .001) lastAudibleVolume = volume;
+  if (persist !== false) store.set(VOLUME_KEY, String(volume));
+  renderVolume();
+}
+
+function toggleMute() {
+  if (audio.muted || audio.volume <= .001) {
+    setVolume(lastAudibleVolume || .8);
+  } else {
+    lastAudibleVolume = audio.volume;
+    audio.muted = true;
+    renderVolume();
+  }
+}
+
+const storedVolume = parseFloat(store.get(VOLUME_KEY));
+setVolume(Number.isFinite(storedVolume) ? storedVolume : .8, false);
+volumeInput.addEventListener('input', () => setVolume(Number(volumeInput.value) / 100));
+muteButton.addEventListener('click', toggleMute);
+
 const keyT = () => 'mv.times.' + (SONG ? SONG.id : '?');
 const keyO = () => 'mv.offset.' + (SONG ? SONG.id : '?');
 
@@ -1616,6 +1657,8 @@ function paintCards() {
   for (let i = 0; i < kids.length; i++) kids[i].classList.toggle('cur', i === songIdx);
 }
 function buildCards() {
+  const songCount = $('#songCount');
+  if (songCount) songCount.textContent = String(CAT.length);
   CAT.forEach((s, i) => {
     const c = document.createElement('div');
     c.className = 'card';
