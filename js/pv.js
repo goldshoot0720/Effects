@@ -375,19 +375,39 @@ function rows(str, px, maxW) {
 // popping in one after another with a little tilt
 function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   opt = opt || {};
-  let px = size, rs = rows(str, px, maxW);
-  while (rs.length > (opt.maxRows || 2) && px > 50) { px -= 8; rs = rows(str, px, maxW); }
+  const latin = /^[\x20-\x7e\u2018\u2019\u2013\u2014]+$/.test(str) && /[A-Za-z]/.test(str);
+  const advance = (ch, px) => ctx.measureText(ch).width + (latin ? px * (ch.trim() ? .36 : .5) : 0);
+  const layout = px => {
+    if (!latin) return rows(str, px, maxW);
+    font(px);
+    const width = s => [...s].reduce((sum, ch) => sum + advance(ch, px), 0);
+    const words = str.trim().split(/\s+/);
+    if (width(str) <= maxW) return [str];
+    // Balance complete words over two rows using the actual decorated glyph
+    // widths, including the room needed for outlines, tilt and bounce.
+    let best = null, score = Infinity;
+    for (let cut = 1; cut < words.length; cut++) {
+      const pair = [words.slice(0, cut).join(' '), words.slice(cut).join(' ')];
+      const widths = pair.map(width);
+      if (Math.max(...widths) <= maxW && Math.abs(widths[0] - widths[1]) < score) {
+        best = pair; score = Math.abs(widths[0] - widths[1]);
+      }
+    }
+    return best || [str, '', ''];
+  };
+  let px = size, rs = layout(px);
+  while (rs.length > (opt.maxRows || 2) && px > 24) { px -= 2; rs = layout(px); }
   // a line with no spaces wraps into even rows, not a full row and a widow
   if (rs.length > 1 && !/[ 　]/.test(str.trim())) {
     const cs = [...str.trim()], n = rs.length, per = Math.ceil(cs.length / n);
     rs = Array.from({ length: n }, (_, i) => cs.slice(i * per, (i + 1) * per).join('')).filter(Boolean);
   }
   font(px);
-  const lh = px * 1.18, y0 = cy - (rs.length - 1) * lh / 2;
+  const lh = px * (latin ? 1.6 : 1.18), y0 = cy - (rs.length - 1) * lh / 2;
   let k = 0;
   for (let r = 0; r < rs.length; r++) {
     const cs = [...rs[r]];
-    const ws = cs.map(c => ctx.measureText(c).width);
+    const ws = cs.map(c => advance(c, px));
     let x = cx - ws.reduce((a, b) => a + b, 0) / 2;
     for (let i = 0; i < cs.length; i++, k++) {
       const ch = cs[i], w = ws[i];
@@ -398,15 +418,15 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
       const hop = opt.hop ? Math.max(0, Math.sin((beatN(t) - k * .25) * Math.PI)) * px * .06 : 0;
       ctx.save();
       ctx.translate(x + w / 2, y0 + r * lh - hop);
-      ctx.rotate((hash(k * 3.1 + seed) - .5) * .22);
-      const sc = easeElastic(p);
+      ctx.rotate((hash(k * 3.1 + seed) - .5) * (latin ? .12 : .22));
+      const sc = latin ? Math.min(1.08, easeElastic(p)) : easeElastic(p);
       ctx.scale(sc, sc);
       font(px); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
       ctx.fillStyle = shade(col, .42);
-      ctx.strokeStyle = shade(col, .42); ctx.lineWidth = px * .26;
+      ctx.strokeStyle = shade(col, .42); ctx.lineWidth = px * (latin ? .17 : .26);
       ctx.strokeText(ch, px * .06, px * .08); ctx.fillText(ch, px * .06, px * .08);
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = px * .22;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = px * (latin ? .12 : .22);
       ctx.strokeText(ch, 0, 0);
       const g = ctx.createLinearGradient(0, -px * .5, 0, px * .5);
       g.addColorStop(0, mix(col, '#ffffff', .35)); g.addColorStop(.55, col); g.addColorStop(1, shade(col, .82));
@@ -419,30 +439,12 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
 }
 // a plain, readable subtitle in the lower third
 function subtitle(str, p, y) {
-  let px = 54, rs = rows(str, px, W * .84);
-  while (rs.length > 3 && px > 34) { px -= 2; rs = rows(str, px, W * .84); }
-  if (rs.length === 2 && /[A-Za-z]/.test(str)) {
-    const words = str.trim().split(/\s+/);
-    let best = Infinity;
-    for (let cut = 1; cut < words.length; cut++) {
-      const pair = [words.slice(0, cut).join(' '), words.slice(cut).join(' ')];
-      const widths = pair.map(row => ctx.measureText(row).width);
-      const difference = Math.abs(widths[0] - widths[1]);
-      if (Math.max(...widths) <= W * .84 && difference < best) { rs = pair; best = difference; }
-    }
-  }
-  const leading = px * 1.45;
-  font(px, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const rs = rows(str, 50, W * .8);
+  font(50, 800); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = clamp(p * 4, 0, 1);
-  const bottom = y || H * .9;
-  ctx.fillStyle = 'rgba(16,10,30,.65)';
-  const width = Math.max(...rs.map(r => ctx.measureText(r).width)) + 56;
-  rrect((W - width) / 2, bottom - (rs.length - 1) * leading - px * .7,
-    width, (rs.length - 1) * leading + px * 1.4, 16);
-  ctx.fill();
   rs.forEach((r, i) => {
-    const yy = bottom - (rs.length - 1 - i) * leading;
-    ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,10,30,.85)';
+    const yy = (y || H * .9) - (rs.length - 1 - i) * 62;
+    ctx.lineJoin = 'round'; ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(16,10,30,.85)';
     ctx.strokeText(r, W / 2, yy);
     ctx.fillStyle = '#ffffff'; ctx.fillText(r, W / 2, yy);
   });
@@ -681,11 +683,7 @@ function stinger(seg, t) {
 /* ---------------------------- the scenes ---------------------------- */
 function whoOf(seg, k) { return LEAD[(seg.who + (k || 0)) % LEAD.length]; }
 function songFrame(t, T) {
-  const seg = segAt(t), idx = lineAt(t), activeLine = idx >= 0 ? LINES[idx] : null;
-  // Latin lyrics are complete shaped words: never split them into rotated,
-  // independently outlined characters or vertical film-strip cells.
-  const english = SONG.lang === 'en' || SONG.id === 's103' || SONG.id === 's102-en';
-  const line = english ? null : activeLine;
+  const seg = segAt(t), idx = lineAt(t), line = idx >= 0 ? LINES[idx] : null;
   const bt = beatN(t), age = t - seg.t0;
   if (seg.mode === 'night') {
     bgNight(t);
@@ -730,7 +728,6 @@ function songFrame(t, T) {
     if (line) subtitle(line.text, (t - line.t) / .6, H * .86);
   }
   stinger(seg, t);
-  if (english && activeLine) subtitle(activeLine.text, (t - activeLine.t) / .6);
   hud(t, T, seg, seg.mode === 'verse' || seg.mode === 'desk');
 }
 

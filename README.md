@@ -8,7 +8,7 @@
 英文版使用 Feng、Tu、Bu Bu 等英文名，日文版使用フェン、トゥ、ブブ等日文名，
 中文與粵語版使用中文名。兩個播放器皆提供上一首、下一首及可記憶的音量控制。
 新增歌曲的校時歌詞來源位於 `data/lyrics/<id>.lrc`。
-英文歌詞以完整單字橫排、自動換行的字幕顯示，避免逐字粗描邊互相擠壓。
+英文歌詞保留彩色逐字彈跳、漸層、描邊與陰影，依實際特效字寬增加字距並按單字換行，避免互相擠壓。
 
 * 線上版：<https://effects-nine.vercel.app>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（`.zip` 桌面版 / `.apk` 手機版 / 九支 PV 的 `.mp4`）
