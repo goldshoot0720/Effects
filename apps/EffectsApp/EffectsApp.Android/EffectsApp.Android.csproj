@@ -5,8 +5,8 @@
     <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <ApplicationId>com.goldshoot.effects</ApplicationId>
-    <ApplicationVersion>3</ApplicationVersion>
-    <ApplicationDisplayVersion>1.0.2</ApplicationDisplayVersion>
+    <ApplicationVersion>13</ApplicationVersion>
+    <ApplicationDisplayVersion>1.2.1</ApplicationDisplayVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>
@@ -20,8 +20,14 @@
   <!-- The same offline web experience is stored in the APK's Android assets. -->
   <ItemGroup>
     <AndroidAsset Include="..\..\..\index.html" Link="Assets\Web\index.html" />
-    <AndroidAsset Include="..\..\..\js\engine.js" Link="Assets\Web\js\engine.js" />
+    <AndroidAsset Include="..\..\..\js\player-controls.js" Link="Assets\Web\js\player-controls.js" />
+    <AndroidAsset Include="..\..\..\js\px.js" Link="Assets\Web\js\px.js" />
+    <AndroidAsset Include="..\..\..\pixel.html" Link="Assets\Web\pixel.html" />
+    <AndroidAsset Include="..\..\..\js\pv.js" Link="Assets\Web\js\pv.js" />
+    <AndroidAsset Include="..\..\..\js\story.js" Link="Assets\Web\js\story.js" />
+    <AndroidAsset Include="..\..\..\js\puppet.js" Link="Assets\Web\js\puppet.js" />
     <AndroidAsset Include="..\..\..\data\songs.js" Link="Assets\Web\data\songs.js" />
+    <AndroidAsset Include="..\..\..\data\cast.js" Link="Assets\Web\data\cast.js" />
     <AndroidAsset Include="..\..\..\data\song\*.js" Link="Assets\Web\data\song\%(Filename)%(Extension)" />
     <AndroidAsset Include="..\..\..\audio\*.mp3" Link="Assets\Web\audio\%(Filename)%(Extension)" />
   </ItemGroup>

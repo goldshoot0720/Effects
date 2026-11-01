@@ -11,3 +11,6 @@ __pycache__/
 *.user
 .DS_Store
 Thumbs.db
+
+# intermediate cut-outs from tools/build_cast.py --debug
+/build/
