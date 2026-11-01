@@ -421,6 +421,16 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
 function subtitle(str, p, y) {
   let px = 54, rs = rows(str, px, W * .84);
   while (rs.length > 3 && px > 34) { px -= 2; rs = rows(str, px, W * .84); }
+  if (rs.length === 2 && /[A-Za-z]/.test(str)) {
+    const words = str.trim().split(/\s+/);
+    let best = Infinity;
+    for (let cut = 1; cut < words.length; cut++) {
+      const pair = [words.slice(0, cut).join(' '), words.slice(cut).join(' ')];
+      const widths = pair.map(row => ctx.measureText(row).width);
+      const difference = Math.abs(widths[0] - widths[1]);
+      if (Math.max(...widths) <= W * .84 && difference < best) { rs = pair; best = difference; }
+    }
+  }
   const leading = px * 1.45;
   font(px, 700); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = clamp(p * 4, 0, 1);
