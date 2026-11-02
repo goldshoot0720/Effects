@@ -8,8 +8,9 @@
 
    需要：Node 18+、playwright（含 Chromium）、ffmpeg
 
-     node tools/render_pv.js                    九首全部
+     node tools/render_pv.js                    十二首全部
      node tools/render_pv.js s023 s101          只做這幾首
+     node tools/render_pv.js --list s102 s103 s104 s105   確認輸出清單，不渲染
      node tools/render_pv.js --fps 60 --jobs 2 --out artifacts/pv   （--jobs：同時渲染幾首）
      node tools/render_pv.js --preview s023     只輸出片頭與副歌的 PNG 檢查用
    ===================================================================== */
@@ -32,7 +33,7 @@ function loadPlaywright() {
 }
 
 function args() {
-  const o = { fps: 30, crf: 19, out: path.join(ROOT, 'artifacts', 'pv'), ids: [], preview: false, batch: 6,
+  const o = { fps: 30, crf: 19, out: path.join(ROOT, 'artifacts', 'pv'), ids: [], preview: false, list: false, batch: 6,
               jobs: Math.max(1, Math.min(4, require('os').cpus().length - 1)) };
   const a = process.argv.slice(2);
   for (let i = 0; i < a.length; i++) {
@@ -41,6 +42,7 @@ function args() {
     else if (k === '--crf') o.crf = +a[++i];
     else if (k === '--out') o.out = path.resolve(a[++i]);
     else if (k === '--preview') o.preview = true;
+    else if (k === '--list') o.list = true;
     else if (k === '--jobs') o.jobs = Math.max(1, +a[++i]);
     else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0]); process.exit(0); }
     else o.ids.push(k);
@@ -162,8 +164,15 @@ async function one(chromium, s, cat, o) {
 (async () => {
   const o = args();
   const cat = catalog();
-  const want = o.ids.length ? cat.filter(s => o.ids.includes(s.id)) : cat;
+  // Workflow inputs stay data, never shell commands. Reject typos before
+  // opening Chromium so a partial selection cannot silently render more songs.
+  const ids = o.ids.length ? o.ids : (process.env.EFFECTS_PV_SONG_IDS || '').split(/[,\s]+/).filter(Boolean);
+  const unknown = ids.filter(id => !cat.some(s => s.id === id));
+  if (unknown.length) throw new Error('Unknown song IDs: ' + unknown.join(', '));
+  const want = ids.length ? cat.filter(s => ids.includes(s.id)) : cat;
   if (!want.length) { console.error('沒有這些歌：', o.ids.join(' ')); process.exit(1); }
+  console.log('Render plan (' + want.length + '): ' + want.map(s => s.id).join(', '));
+  if (o.list) return;
   fs.mkdirSync(o.out, { recursive: true });
   const { chromium } = loadPlaywright();
   // longest songs first, so the workers finish together

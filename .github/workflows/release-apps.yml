@@ -20,6 +20,11 @@ on:
         type: boolean
         required: true
         default: false
+      song_ids:
+        description: Comma-separated song IDs to render; leave empty for all songs
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -111,6 +116,8 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Render PVs
+        env:
+          EFFECTS_PV_SONG_IDS: ${{ inputs.song_ids }}
         run: node tools/render_pv.js --out artifacts/pv
 
       - name: Save PVs
