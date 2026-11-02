@@ -1,2 +1,2 @@
 # Preserve exact imported subtitle bytes for source provenance on Windows and CI.
-data/lyrics/*.srt -text
+data/lyrics/*.srt -text whitespace=cr-at-eol

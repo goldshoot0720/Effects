@@ -145,7 +145,7 @@ def parse_lrc(path, duration):
     return structure_lines(lines, duration)
 
 
-def parse_srt(path, duration):
+def parse_srt(path, duration, lang=None):
     """Keep each edition's exact subtitle starts and ends, including silence."""
     path = os.fspath(path)
     with open(path, encoding='utf-8-sig') as f:
@@ -160,12 +160,22 @@ def parse_srt(path, duration):
             h, m, s, ms = match.groups()[offset:offset + 4]
             return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 10 ** len(ms)
         start, end = seconds(0), seconds(4)
-        text = match.group(9).strip()
+        body = [line.strip() for line in match.group(9).splitlines() if line.strip()]
+        translation = None
+        # NewEffects' original jackpot EN/JA files include a separate Chinese
+        # translation line. Keep it as metadata, outside the animated lyric.
+        if (len(body) > 1 and lang in ('en', 'ja') and
+                re.search(r'[\u4e00-\u9fff]', body[-1]) and
+                not re.search(r'[\u3040-\u30ff]', body[-1])):
+            translation = body.pop()
+        text = ' '.join(body)
         if not text or start < 0 or end <= start or end > duration + .1:
             raise ValueError('Subtitle outside audio bounds in ' + path)
         if lines and start < lines[-1]['t'] + lines[-1]['d'] - .002:
             raise ValueError('Overlapping subtitles in ' + path)
         lines.append({'t': round(start, 3), 'd': round(end - start, 3), 'text': text})
+        if translation:
+            lines[-1]['translation'] = translation
     if not lines:
         raise ValueError('Empty subtitles in ' + path)
     return structure_lines(lines, duration)
@@ -258,6 +268,7 @@ def build(only=None):
     for sid, stem, title, cast, theme, tagline in SONGS:
         if only and sid != only:
             continue
+        meta = next(s for s in SOURCES if s['id'] == sid)
         mp3 = os.path.join(SRC, stem + '.mp3')
         # Canonical lyrics live in the repository when available; older songs
         # still fall back to the user's Music folder without migration.
@@ -279,7 +290,7 @@ def build(only=None):
         lines, sections = ([], [])
         srt = os.path.join(LYRICS, sid + '.srt')
         if os.path.exists(srt):
-            lines, sections = parse_srt(srt, an['duration'])
+            lines, sections = parse_srt(srt, an['duration'], meta['lang'])
         elif os.path.exists(lrc):
             lines, sections = parse_lrc(lrc, an['duration'])
         else:
@@ -289,7 +300,6 @@ def build(only=None):
             'tagline': tagline, 'audio': 'audio/%s.mp3' % sid,
             'analysis': an, 'sections': sections, 'lines': lines,
         }
-        meta = next(s for s in SOURCES if s['id'] == sid)
         data.update({key: meta[key] for key in ('baseId', 'pv', 'lang')})
         path = os.path.join(ROOT, 'data', 'song', sid + '.js')
         with open(path, 'w', encoding='utf-8') as f:

@@ -31,6 +31,7 @@ python tools/test_subtitles.py
 
 重建時優先使用已匯入的 `audio/<id>.mp3`，SRT 優先於歷史 LRC，保留字幕的
 實際開始、結束與中間空白。可用 `EFFECTS_SONG_SOURCE` 明確指定外部音源覆蓋。
+頭獎英、日版 SRT 的中文翻譯另外存入 `translation`，特效字幕僅使用主歌詞，避免兩種文字擠在一起。
 所有舊歌曲 ID 保留，因此既有連結不需修改；新增語言版使用 `-en`、`-ja`、`-yue`，
 頭獎歌沿用原來的 `s103`、`s104`、`s105`。
 
