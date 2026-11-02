@@ -82,6 +82,13 @@ const CAST = {
             collar:'#ffffff', eye:'#3a7ad8', shine:'#6a5a50', blush:1 }
 };
 // 每位角色的 id 對上 data/cast.js 的 T-pose 立繪，px.js 以此挑選圖像人偶
+CAST.claude = { ...CAST.ya, name:'Claude 娘', hair:'#c97438', hair2:'#86432a',
+  hair3:'#e6a05f', twin:0, long:1, ears:null, ribbon:'#302320',
+  cloth:'#f3e6d2', cloth2:'#cdb79a', skirt:'#c67537', skirtTrim:'#302320',
+  collar:'#f3e6d2', bowtie:'#bd7135', eye:'#b48348' };
+CAST.gpt = { ...CAST.yu, name:'GPT 娘', hair:'#f3f0fc', hair2:'#bbb4d4',
+  hair3:'#ffffff', cloth:'#f8f6ff', cloth2:'#d8d1e8', skirt:'#f4f0fb',
+  sailor:0, collar:'#e5ddf1', eye:'#a18ac1', tailKind:'whale', tailCol:'#e8e2f4' };
 for (const k in CAST) CAST[k].id = k;
 const FENG = CAST.feng, TU = CAST.tu;
 
@@ -752,10 +759,15 @@ S.s102 = {
     const ty = Math.round(g.fy);
     const fh = Math.round(BH * .28);
     const sing = g.F.level;
-    // 招財喵布布 in the middle, paw up, the way a lucky cat stands
+    // Feng and Tu share the centre; cats and girls stand outwards.
     const cx = g.cx;
-    F.figure({ x: cx, y: ty + BH * .02, h: BH * .3, t: g.t, sing: 0, ...CAST.bubu,
+    F.figure({ x: cx - BH * .31, y: ty + BH * .02, h: BH * .3, t: g.t, sing: 0, ...CAST.bubu,
                pose: 'raise', collar: P.acc, shadowBack: P.bg0, shadowFront: P.bg1 });
+    [FENG, TU].forEach((who, i) => F.figure({ x: cx + (i ? 1 : -1) * BH * .105,
+      y: ty + BH * .02, h: BH * .32, t: g.t, sing, ...who,
+      dance:'clap', di:i, shadowBack:P.bg0, shadowFront:P.bg1 }));
+    F.figure({ x: cx + BH * .31, y: ty + BH * .02, h: BH * .3, t:g.t,
+      ...CAST.baibai, dance:'clap', shadowBack:P.bg0, shadowFront:P.bg1 });
     if (s.id === 'cake' || s.id === 'family' || s.id === 'photo') {
       // the cake with the 37 candles
       const kx = BW * .78;
@@ -764,9 +776,9 @@ S.s102 = {
       F.text('37', kx, ty - BH * .105, 10, P.warm, 'center', 900);
     }
     if (s.id === 'family' || s.id === 'photo') {
-      const cast = [FENG, TU, CAST.whale, CAST.gugu];
-      for (let i = 0; i < 4; i++) {
-        const x = BW * (i < 2 ? .13 + i * .13 : .61 + (i - 2) * .13);
+      const cast = [CAST.claude, CAST.gpt];
+      for (let i = 0; i < cast.length; i++) {
+        const x = BW * (i ? .9 : .1);
         F.figure({ x, y: ty + BH * .02, h: fh, t: g.t, sing, ph: i, ...cast[i],
                    dance: s.id === 'photo' ? (g.shotP > .55 ? 'heart' : 'cheer') : 'clap', di: i,
                    shadowBack: P.bg0, shadowFront: P.bg1 });
@@ -802,31 +814,39 @@ S.__default = d => ({
 const NAMES = {
   zh: Object.fromEntries(Object.entries(CAST).map(([id, who]) => [id, who.name])),
   en: { whale:'Whale Girl', gugu:'Gugu Gaga', feng:'Feng', tu:'Tu',
-        bubu:'Bu Bu', baibai:'Bai Bai', ya:'Ya', yu:'Yu' },
+        bubu:'Bu Bu', baibai:'Bai Bai', ya:'Ya', yu:'Yu', claude:'Claude Girl', gpt:'GPT Girl' },
   ja: { whale:'クジラ娘', gugu:'ググガガ', feng:'フェン', tu:'トゥ',
-        bubu:'ブブ', baibai:'バイバイ', ya:'ヤー', yu:'ユー' }
+        bubu:'ブブ', baibai:'バイバイ', ya:'ヤー', yu:'ユー', claude:'クロード娘', gpt:'GPT娘' }
 };
+let jackpotCast = false;
+const JACKPOT_IDS = new Set(['s102', 's103', 's104', 's105',
+  's102-en', 's102-ja', 's102-jp', 's102-yue', 's102-zh-HK']);
 S.__setLanguage = song => {
+  jackpotCast = JACKPOT_IDS.has(song.id);
   const lang = song.lang || ({ s103:'en', s104:'ja', s105:'yue',
-    's102-en':'en', 's102-ja':'ja', 's102-yue':'yue' })[song.id] || 'zh';
+    's102-en':'en', 's102-ja':'ja', 's102-jp':'ja', 's102-yue':'yue', 's102-zh-HK':'yue' })[song.id] || 'zh';
   const names = NAMES[lang] || NAMES.zh;
   for (const id in CAST) CAST[id].name = names[id] || NAMES.zh[id];
 };
 S.s103 = S.s104 = S.s105 = S.s102;
 S.__credits = cast => String(cast || '').split(' · ').map(name => {
   const id = Object.keys(NAMES.zh).find(id => NAMES.zh[id] === name || (id === 'bubu' && name === '布布'));
-  return id ? CAST[id].name : name;
+  return id ? castMember(id).name : name;
 }).join(' · ');
-S.__who = n => CAST[n];
+const castMember = id => CAST[jackpotCast ? ({ ya:'claude', yu:'gpt' }[id] || id) : id];
+S.__who = castMember;
 /* PV 片頭站台的主角（js/px.js 的 PV 模式用），順序就是左到右 */
 const LEAD = {
   s023: ['feng', 'tu'], s024: ['whale', 'feng', 'tu', 'gugu'], s026: ['baibai', 'bubu'],
   s027: ['feng'], s028: ['tu'], s029: ['ya', 'feng', 'tu', 'yu'], s062: ['feng'],
   s101: ['feng'], s102: ['feng', 'bubu', 'tu']
 };
-S.__lead = id => (LEAD[id] || (['s103', 's104', 's105'].includes(id) ? LEAD.s102 : ['feng', 'tu'])).map(k => CAST[k]);
-S.__cast = () => [CAST.whale, CAST.gugu, CAST.feng, CAST.tu,
-                  CAST.bubu, CAST.baibai, CAST.ya, CAST.yu];
+const JACKPOT_LEAD = ['claude', 'bubu', 'feng', 'tu', 'baibai', 'gpt'];
+S.__isJackpot = id => JACKPOT_IDS.has(id);
+S.__lead = id => (JACKPOT_IDS.has(id) ? JACKPOT_LEAD : (LEAD[id] || ['feng', 'tu'])).map(castMember);
+S.__cast = () => (jackpotCast
+  ? ['whale', 'claude', 'bubu', 'feng', 'tu', 'baibai', 'gpt', 'gugu']
+  : ['whale', 'gugu', 'feng', 'tu', 'bubu', 'baibai', 'ya', 'yu']).map(castMember);
 
 return S;
 })();

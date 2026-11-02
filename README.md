@@ -9,6 +9,10 @@
 中文與粵語版使用中文名。兩個播放器皆提供上一首、下一首及可記憶的音量控制。
 新增歌曲的校時歌詞來源位於 `data/lyrics/<id>.lrc`。
 英文歌詞保留彩色逐字彈跳、漸層、描邊與陰影，依實際特效字寬增加字距並按單字換行，避免互相擠壓。
+頭獎歌曲四個語言版本由鋒兄、塗哥站雙 C 位，往外安排貓咪與娘角色；
+牙妹替換成 Claude 娘、魚妹替換成 GPT 娘，GPT 娘不帶 Sora2 雲朵符號。
+人物視窗僅顯示角色名字，不加 `.pet`。其他歌曲仍使用原本的牙妹與魚妹。
+新角色素材與產圖規格見 [art/cast/README.md](art/cast/README.md)。
 
 * 線上版：<https://effects-nine.vercel.app>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（`.zip` 桌面版 / `.apk` 手機版 / 九支 PV 的 `.mp4`）

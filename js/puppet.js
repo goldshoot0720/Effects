@@ -228,6 +228,7 @@ class Puppet {
 
   bodyWeights(x, y) {
     const g = this.rig, k = this.k, tl = g.tail;
+    if (g.rigid) return [[B.chest, 1]];
     if (tl && x > tl.root[0] - 15 * k && y > tl.top && (x > tl.minx || y > tl.miny)) {
       const w = smoothstep(10 * k, 90 * k, Math.hypot(x - tl.root[0], y - tl.root[1]));
       return [[B.tail, w], [B.pelvis, 1 - w]];

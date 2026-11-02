@@ -594,10 +594,14 @@ function petWin(who, x, y, w, h, col, t, i, p) {
   ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(x + 34, y + 31, 17, 0, TAU); ctx.fill();
   ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + 34, y + 35, 6.5, 0, TAU); ctx.fill();
   for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x + 26 + k * 8, y + 25, 3.2, 0, TAU); ctx.fill(); }
-  font(30, 900); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2a1d3a';
-  ctx.fillText((who.name || who.id) + '.pet', x + 62, y + 32);
+  const name = who.name || who.id;
+  let nameSize = 30;
+  font(nameSize, 900);
+  while (nameSize > 12 && ctx.measureText(name).width > w - 180) font(--nameSize, 900);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#2a1d3a';
+  ctx.fillText(name, x + 62, y + 32);
   font(17, 700); ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(42,29,58,.75)';
-  ctx.fillText([...String(who.id).toUpperCase()].join(' '), x + w - 132, y + 33);
+  if (w >= 380) ctx.fillText([...String(who.id).toUpperCase()].join(' '), x + w - 132, y + 33);
   for (let k = 0; k < 3; k++) {
     const bx = x + w - 104 + k * 34, by = y + 31;
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(bx, by, 13, 0, TAU); ctx.fill();
@@ -616,6 +620,17 @@ const PETLAY = {
   4: [[.03, .12], [.28, .4], [.5, .1], [.66, .42]]
 };
 function petDesk(list, t, u) {
+  if (window.MV_STORY.__isJackpot(SONG.id)) {
+    // Fixed order keeps Feng and Tu as the two middle windows even when an
+    // interlude requests a rotated cast order.
+    const cast = window.MV_STORY.__lead(SONG.id);
+    const w = W * .155, h = H * .58;
+    const colors = [PAL.acc, PAL.acc2, PAL.warm, PAL.warm, PAL.acc2, PAL.acc];
+    cast.forEach((who, i) => petWin(who, W * (.01 + i * .165),
+      H * (i === 2 || i === 3 ? .16 : .25), w, h, colors[i], t, i,
+      (u - .15 - Math.abs(i - 2.5) * .2) / .42));
+    return;
+  }
   const n = Math.min(4, list.length), lay = PETLAY[n] || PETLAY[1];
   const w = W * (n >= 3 ? .33 : n === 2 ? .4 : .42), h = H * (n === 4 ? .5 : n === 3 ? .52 : n === 2 ? .6 : .66);
   const cols = [PAL.warm, PAL.acc2, PAL.acc, '#a98bff'];
