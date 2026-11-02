@@ -8,7 +8,7 @@
 
    需要：Node 18+、playwright（含 Chromium）、ffmpeg
 
-     node tools/render_pv.js                    十二首全部
+     node tools/render_pv.js                    九首歌的全部 36 個語言版本
      node tools/render_pv.js s023 s101          只做這幾首
      node tools/render_pv.js --list s102 s103 s104 s105   確認輸出清單，不渲染
      node tools/render_pv.js --fps 60 --jobs 2 --out artifacts/pv   （--jobs：同時渲染幾首）
@@ -142,9 +142,10 @@ const CHROME_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '
                      '--disable-gpu-compositing', '--allow-file-access-from-files', '--mute-audio'];
 
 async function one(chromium, s, cat, o) {
-  const no = String(cat.indexOf(s) + 1).padStart(2, '0');
-  const base = path.join(o.out, `PV${no}_${safe(s.title)}`);
-  const tag = `[${no} ${s.title}]`;
+  const no = String(s.pv || cat.indexOf(s) + 1).padStart(2, '0');
+  const language = s.lang && s.lang !== 'zh' ? '_' + s.lang.toUpperCase() : '';
+  const base = path.join(o.out, `PV${no}${language}_${safe(s.title)}`);
+  const tag = `[${no}${language} ${s.title}]`;
   const browser = await chromium.launch({ args: CHROME_ARGS });
   try {
     const page = await openSong(browser, s.id);

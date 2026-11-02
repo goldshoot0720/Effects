@@ -168,6 +168,10 @@
 .volume input{width:80px;accent-color:#bda3ff}
 .volume output{font-size:12px;min-width:32px}
 @media(max-width:600px){.volume input{width:60px}.volume output{display:none}}
+  @media (min-width:1100px){
+    #start .in{max-width:1100px}
+    #grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  }
 </style>
 </head>
 <body>
@@ -205,7 +209,7 @@
     </nav>
     <div class="kick">鋒 兄 宇 宙 · P I X E L　M V</div>
     <h2>選一首歌</h2>
-    <div class="sub"><span id="songCount">12</span> 首歌 · 90 年代 PC-98 賽璐璐風 · 每首歌一組故事分鏡</div>
+    <div class="sub">9 首歌 · 中／英／日／粵 · 共 <span id="songCount">36</span> 個版本 · PC-98 像素 MV</div>
     <div id="grid"></div>
     <div class="keys">
       空白 播放／暫停　·　← → 倒退／快進 10 秒　·　S 選歌　·　N P 換歌　·　Q 像素粗細　·　C 立繪／手繪　·　L 角色表　·　F 全螢幕
@@ -215,11 +219,11 @@
 </div>
 
 <audio id="audio" preload="auto" playsinline></audio>
-<script src="data/songs.js?v=2.4.0"></script>
+<script src="data/songs.js?v=2.6.0"></script>
 <script src="data/cast.js?v=2.5.0"></script>
 <script src="js/puppet.js?v=2.5.0"></script>
 <script src="js/player-controls.js?v=2.4.0"></script>
-<script src="js/story.js?v=2.5.0"></script>
-<script src="js/px.js?v=2.4.0"></script>
+<script src="js/story.js?v=2.6.0"></script>
+<script src="js/px.js?v=2.6.0"></script>
 </body>
 </html>

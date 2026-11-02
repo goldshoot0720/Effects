@@ -15,7 +15,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '2.0.0';
+const VERSION = '2.6.0';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -1306,7 +1306,7 @@ function applySong(d, autoplay) {
   DUR = AA.duration; BEAT = 60 / AA.bpm;
   LY = { title: d.title, cast: d.cast, tagline: d.tagline, lines: d.lines.map((l, i) => ({ ...l, idx: i })) };
   SEC = d.sections || [];
-  STORY = (window.MV_STORY && window.MV_STORY[d.id]) || window.MV_STORY.__default(d);
+  STORY = window.MV_STORY.__forSong(d);
   STORY.shots.sort((a, c) => a.t - c.t);
   const sameTake = autoplay && !audio.paused && audio.currentTime < 1.2 &&
     (audio.src.endsWith('/' + d.audio) || audio.src.endsWith(d.audio));
@@ -1364,8 +1364,9 @@ function buildCards() {
   CAT.forEach((s, i) => {
     const d = document.createElement('button');
     d.className = 'card';
-    d.innerHTML = '<span class="n">' + String(i + 1).padStart(2, '0') + '</span>' +
+    d.innerHTML = '<span class="n"></span>' +
                   '<span class="t"></span><span class="c"></span>';
+    d.querySelector('.n').textContent = 'PV ' + String(s.pv || i + 1).padStart(2, '0') + ' · ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
     d.querySelector('.t').textContent = s.title;
     d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
     d.onclick = () => {

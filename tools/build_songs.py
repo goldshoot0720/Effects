@@ -6,7 +6,7 @@ For every entry in SONGS this script
   * decodes it with ffmpeg and bakes a spectrum / loudness / onset track
     into data/song/<id>.js (so the page needs no Web Audio API and works
     straight from file://)
-  * parses the .lrc into timed lines and guesses the section structure
+  * parses canonical .srt (or legacy .lrc) and guesses the section structure
   * writes the catalogue data/songs.js
 
 Run:  python tools/build_songs.py            (all songs)
@@ -23,8 +23,8 @@ import sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# Override this when working from a checked-out or CI-provided source folder.
-# The existing default keeps the original local workflow intact.
+# Explicitly override to refresh audio from a source folder. Normal rebuilds
+# prefer the checked-in snapshot, avoiding accidental Music-folder overrides.
 SRC = os.environ.get('EFFECTS_SONG_SOURCE', os.path.join(os.path.expanduser('~'), 'Music'))
 LYRICS = os.path.join(ROOT, 'data', 'lyrics')
 SR = 22050
@@ -32,25 +32,10 @@ BAND_FPS = 30          # spectrum frames per second
 RMS_FPS = 60           # loudness frames per second
 NB = 12                # number of log-spaced bands
 
-# id, source stem (without extension), display title, cast line, theme, tagline
-SONGS = [
-    ('s023', '023_鋒塗力百年夢_中文', '鋒塗力百年夢', '鋒兄 · 塗哥', 'dream', '一張桌 一枝筆 一個百年夢'),
-    ('s024', '024_水電進化 Show_中文', '水電進化 Show', '鋒兄 · 塗哥 · 樂團', 'volt', '從水電進化到樂團'),
-    ('s026', '026_喵布布本喵掉的毛_中文', '喵布布本喵掉的毛', '喵布布', 'meow', '本喵掉的毛 每一根都有事'),
-    ('s027', '027_鋒兄的傳奇人生_中文', '鋒兄的傳奇人生', '鋒兄', 'crown', '從頭獎到榜首 從榜首到總統'),
-    ('s028', '028_塗哥水電王子爆紅_中文', '塗哥水電王子爆紅', '塗哥', 'blaze', '水電王子 一夜爆紅'),
-    ('s029', '029_最瞎結婚理由_中文', '最瞎結婚理由', '鋒兄 · 小塗 · 牙妹 · 魚妹', 'wed', '一個號碼　兩場婚禮'),
-    ('s062', '062_鋒兄進化 Show！🔥_中文', '鋒兄進化 Show！', '鋒兄', 'neon', '進化沒有上限'),
-    ('s101', '我與國中畢業紀念冊的對話', '我與國中畢業紀念冊的對話', '鋒兄', 'memo', '翻開那一頁 全部都回來了'),
-    ('s102', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥',
-     '鋒兄 · 塗哥', 'money', '中獎是日常 不是意外'),
-    ('s103', 's103', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（英文歌詞）',
-     'Feng · Tu · Bu Bu', 'money', 'Lucky cat Bu Bu brings you blessings'),
-    ('s104', 's104', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（日文歌詞）',
-     'フェン · トゥ · ブブ', 'money', 'ねこのブブ ふくをはこぶ'),
-    ('s105', 's105', '統一發票頭獎得主鋒兄威力彩頭獎得主塗哥（粵文歌詞）',
-     '鋒兄 · 塗哥 · 布布', 'money', '招財喵布布送嚟祝福滿滿'),
-]
+with open(os.path.join(ROOT, 'data', 'song_sources.json'), encoding='utf-8') as f:
+    SOURCES = json.load(f)
+SONGS = [(s['id'], s['sourceStem'], s['title'], s['cast'], s['theme'], s['tagline'])
+         for s in SOURCES]
 # a song's .lrc may sit next to the mp3 under a slightly different name
 LRC_OVERRIDE = {'s029': '最瞎結婚理由 鋒兄 小塗 牙妹 魚妹'}
 
@@ -157,6 +142,36 @@ def parse_lrc(path, duration):
         if m and m.group(3).strip():
             lines.append({'t': round(int(m.group(1)) * 60 + float(m.group(2)), 2),
                           'text': m.group(3).strip()})
+    return structure_lines(lines, duration)
+
+
+def parse_srt(path, duration):
+    """Keep each edition's exact subtitle starts and ends, including silence."""
+    path = os.fspath(path)
+    with open(path, encoding='utf-8-sig') as f:
+        source = f.read().replace('\r\n', '\n')
+    lines = []
+    stamp = r'(\d+):(\d+):(\d+)[,.](\d+)'
+    for block in re.split(r'\n\s*\n', source.strip()):
+        match = re.search(stamp + r'\s*-->\s*' + stamp + r'[^\n]*\n([\s\S]+)', block)
+        if not match:
+            raise ValueError('Invalid SRT block in ' + path)
+        def seconds(offset):
+            h, m, s, ms = match.groups()[offset:offset + 4]
+            return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 10 ** len(ms)
+        start, end = seconds(0), seconds(4)
+        text = match.group(9).strip()
+        if not text or start < 0 or end <= start or end > duration + .1:
+            raise ValueError('Subtitle outside audio bounds in ' + path)
+        if lines and start < lines[-1]['t'] + lines[-1]['d'] - .002:
+            raise ValueError('Overlapping subtitles in ' + path)
+        lines.append({'t': round(start, 3), 'd': round(end - start, 3), 'text': text})
+    if not lines:
+        raise ValueError('Empty subtitles in ' + path)
+    return structure_lines(lines, duration)
+
+
+def structure_lines(lines, duration):
     lines.sort(key=lambda l: l['t'])
     # drop duplicate timestamps (some exports repeat a line)
     out = []
@@ -210,7 +225,8 @@ def parse_lrc(path, duration):
 
     for i, l in enumerate(lines):
         nxt = lines[i + 1]['t'] if i + 1 < len(lines) else duration
-        l['d'] = round(min(max(nxt - l['t'] - 0.08, 0.7), 6.4), 2)
+        if 'd' not in l:
+            l['d'] = round(min(max(nxt - l['t'] - 0.08, 0.7), 6.4), 2)
     return lines, sections
 
 
@@ -234,6 +250,8 @@ def write_catalogue(catalogue, only):
 
 
 def build(only=None):
+    if only and only not in {s['id'] for s in SOURCES}:
+        raise ValueError('Unknown song ID: ' + only)
     os.makedirs(os.path.join(ROOT, 'audio'), exist_ok=True)
     os.makedirs(os.path.join(ROOT, 'data', 'song'), exist_ok=True)
     catalogue = []
@@ -246,17 +264,23 @@ def build(only=None):
         checked_in_lrc = os.path.join(LYRICS, sid + '.lrc')
         lrc = checked_in_lrc if os.path.exists(checked_in_lrc) else os.path.join(
             SRC, LRC_OVERRIDE.get(sid, stem) + '.lrc')
-        if not os.path.exists(mp3):
-            print('  !! missing mp3:', mp3)
-            continue
         dst = os.path.join(ROOT, 'audio', sid + '.mp3')
-        if not os.path.exists(dst) or os.path.getsize(dst) != os.path.getsize(mp3):
+        if os.path.exists(dst) and 'EFFECTS_SONG_SOURCE' not in os.environ:
+            mp3 = dst
+        elif not os.path.exists(mp3):
+            mp3 = dst
+        if not os.path.exists(mp3):
+            raise FileNotFoundError(mp3)
+        if os.path.abspath(dst) != os.path.abspath(mp3):
             shutil.copyfile(mp3, dst)
 
         print('==', sid, title)
         an = analyse(decode(dst))
         lines, sections = ([], [])
-        if os.path.exists(lrc):
+        srt = os.path.join(LYRICS, sid + '.srt')
+        if os.path.exists(srt):
+            lines, sections = parse_srt(srt, an['duration'])
+        elif os.path.exists(lrc):
             lines, sections = parse_lrc(lrc, an['duration'])
         else:
             print('  !! missing lrc:', lrc)
@@ -265,6 +289,8 @@ def build(only=None):
             'tagline': tagline, 'audio': 'audio/%s.mp3' % sid,
             'analysis': an, 'sections': sections, 'lines': lines,
         }
+        meta = next(s for s in SOURCES if s['id'] == sid)
+        data.update({key: meta[key] for key in ('baseId', 'pv', 'lang')})
         path = os.path.join(ROOT, 'data', 'song', sid + '.js')
         with open(path, 'w', encoding='utf-8') as f:
             f.write('window.MV_SONG_DATA=window.MV_SONG_DATA||{};\n')
@@ -276,7 +302,8 @@ def build(only=None):
         print('   %.1fs  %d lines  %d sections %s  %.1f bpm  %d onsets  %dkB'
               % (an['duration'], len(lines), len(sections), kinds, an['bpm'],
                  len(an['onsets']), os.path.getsize(path) // 1024))
-        catalogue.append({'id': sid, 'title': title, 'cast': cast, 'theme': theme,
+        catalogue.append({'id': sid, 'baseId': meta['baseId'], 'pv': meta['pv'], 'lang': meta['lang'],
+                          'title': title, 'cast': cast, 'theme': theme,
                           'tagline': tagline, 'dur': an['duration'],
                           'lines': len(lines), 'bpm': an['bpm'],
                           'src': 'data/song/%s.js' % sid, 'audio': 'audio/%s.mp3' % sid})

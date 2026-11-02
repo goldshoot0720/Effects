@@ -819,17 +819,32 @@ const NAMES = {
         bubu:'ブブ', baibai:'バイバイ', ya:'ヤー', yu:'ユー', claude:'クロード娘', gpt:'GPT娘' }
 };
 let jackpotCast = false;
+const catalogue = window.MV_SONGS || [];
+const metadata = id => catalogue.find(song => song.id === id);
+const baseId = id => metadata(id)?.baseId || id.replace(/-(en|ja|yue)$/, '');
 const JACKPOT_IDS = new Set(['s102', 's103', 's104', 's105',
   's102-en', 's102-ja', 's102-jp', 's102-yue', 's102-zh-HK']);
 S.__setLanguage = song => {
-  jackpotCast = JACKPOT_IDS.has(song.id);
-  const lang = song.lang || ({ s103:'en', s104:'ja', s105:'yue',
+  jackpotCast = S.__isJackpot(song.id);
+  const lang = song.lang || metadata(song.id)?.lang || song.id.match(/-(en|ja|yue)$/)?.[1] || ({ s103:'en', s104:'ja', s105:'yue',
     's102-en':'en', 's102-ja':'ja', 's102-jp':'ja', 's102-yue':'yue', 's102-zh-HK':'yue' })[song.id] || 'zh';
   const names = NAMES[lang] || NAMES.zh;
   for (const id in CAST) CAST[id].name = names[id] || NAMES.zh[id];
 };
 S.s103 = S.s104 = S.s105 = S.s102;
+// Language editions share their song's setting and cast, with shot times
+// scaled to their own full audio length. Lyric times remain edition-specific.
+const STORY_DURATION = { s023:97.032, s024:163.6, s026:169.96, s027:141.744,
+  s028:225.96, s029:165.88, s062:101, s101:234.56, s102:127.07 };
+S.__forSong = song => {
+  const id = baseId(song.id), story = S[id] || S[song.id];
+  if (!story) return S.__default(song);
+  const scale = song.analysis.duration / (STORY_DURATION[id] || song.analysis.duration);
+  return { ...story, shots: story.shots.map(shot => ({ ...shot, t: shot.t * scale })) };
+};
 S.__credits = cast => String(cast || '').split(' · ').map(name => {
+  if (name === '樂團') return CAST.feng.name === 'Feng' ? 'Band' : CAST.feng.name === 'フェン' ? 'バンド' : name;
+  if (name === '小塗') return CAST.tu.name === 'Tu' ? 'Little Tu' : CAST.tu.name === 'トゥ' ? '小トゥ' : name;
   const id = Object.keys(NAMES.zh).find(id => NAMES.zh[id] === name || (id === 'bubu' && name === '布布'));
   return id ? castMember(id).name : name;
 }).join(' · ');
@@ -842,8 +857,8 @@ const LEAD = {
   s101: ['feng'], s102: ['feng', 'bubu', 'tu']
 };
 const JACKPOT_LEAD = ['claude', 'bubu', 'feng', 'tu', 'baibai', 'gpt'];
-S.__isJackpot = id => JACKPOT_IDS.has(id);
-S.__lead = id => (JACKPOT_IDS.has(id) ? JACKPOT_LEAD : (LEAD[id] || ['feng', 'tu'])).map(castMember);
+S.__isJackpot = id => JACKPOT_IDS.has(id) || baseId(id) === 's102';
+S.__lead = id => (S.__isJackpot(id) ? JACKPOT_LEAD : (LEAD[baseId(id)] || ['feng', 'tu'])).map(castMember);
 S.__cast = () => (jackpotCast
   ? ['whale', 'claude', 'bubu', 'feng', 'tu', 'baibai', 'gpt', 'gugu']
   : ['whale', 'gugu', 'feng', 'tu', 'bubu', 'baibai', 'ya', 'yu']).map(castMember);

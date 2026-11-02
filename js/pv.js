@@ -845,12 +845,12 @@ function frame(T, dt) {
 function apply(d, i) {
   window.MV_STORY.__setLanguage(d);
   d = { ...d, cast: window.MV_STORY.__credits(d.cast) };
-  SONG = d; AA = d.analysis; NO = i + 1;
+  SONG = d; AA = d.analysis; NO = d.pv || i + 1;
   BANDS = b64u8(AA.bands); RMSA = b64u8(AA.rms); NB = AA.bandCount;
   DUR = AA.duration; BEAT = 60 / AA.bpm;
   LINES = d.lines.map((l, k) => ({ ...l, idx: k }));
   SEC = d.sections || [];
-  const st = window.MV_STORY[d.id] || window.MV_STORY.__default(d);
+  const st = window.MV_STORY.__forSong(d);
   PAL = st.pal; BANNER = st.banner || d.title;
   LEAD = window.MV_STORY.__lead(d.id);
   ALL = window.MV_STORY.__cast();
@@ -884,7 +884,7 @@ function load(id, cb) {
   if (songLoading.has(id)) return;
   songLoading.add(id);
   const s = document.createElement('script');
-  s.src = 'data/song/' + meta.id + '.js?v=2.0.0';
+  s.src = 'data/song/' + meta.id + '.js?v=2.6.0';
   s.onload = () => {
     songLoading.delete(id);
     const list = songWaiters[id] || [];
@@ -1008,7 +1008,8 @@ function player() {
   if (grid) CAT.forEach((s, i) => {
     const d = document.createElement('button');
     d.className = 'card';
-    d.innerHTML = '<span class="n">PV ' + p2(i + 1) + '</span><span class="t"></span><span class="c"></span>';
+    d.innerHTML = '<span class="n"></span><span class="t"></span><span class="c"></span>';
+    d.querySelector('.n').textContent = 'PV ' + p2(s.pv || i + 1) + ' · ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
     d.querySelector('.t').textContent = s.title;
     d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
     d.onclick = () => { hideList(); gesturePick(i); };
