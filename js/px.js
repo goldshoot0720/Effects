@@ -15,7 +15,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -45,7 +45,7 @@ const RM = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').
 /* ============================== buffer ============================= */
 const cvs = $('#screen'), ctx = cvs.getContext('2d', { alpha: false });
 const buf = document.createElement('canvas');
-const b = buf.getContext('2d', { alpha: false });
+const b = window.MV_STORY.__cleanCanvas(buf.getContext('2d', { alpha: false }));
 let W = 0, H = 0, BW = 0, BH = 0, SC = 1, port = false;
 let QUAL = clamp(Math.round(parseFloat(store.get('px.qual')) || 1), 0, 2);
 const QNAME = ['粗', '中', '細'];
@@ -1300,7 +1300,7 @@ function updateHud(t, idx) {
 
 function applySong(d, autoplay) {
   window.MV_STORY.__setLanguage(d);
-  d = { ...d, cast: window.MV_STORY.__credits(d.cast) };
+  d = window.MV_STORY.__displaySong(d);
   SONG = d; AA = d.analysis;
   BANDS = b64u8(AA.bands); RMSA = b64u8(AA.rms); NB = AA.bandCount;
   DUR = AA.duration; BEAT = 60 / AA.bpm;
@@ -1312,7 +1312,7 @@ function applySong(d, autoplay) {
     (audio.src.endsWith('/' + d.audio) || audio.src.endsWith(d.audio));
   if (!sameTake) { audio.src = d.audio; audio.load(); }
   clock = 0; resetOnsets(0);
-  document.title = d.title + ' · 第二版本 · 像素 MV';
+  document.title = d.title + ' 第二版本 像素 MV';
   $('#ttl').textContent = d.title;
   $('#cast').textContent = d.cast;
   store.set('px.song', d.id);
@@ -1366,9 +1366,9 @@ function buildCards() {
     d.className = 'card';
     d.innerHTML = '<span class="n"></span>' +
                   '<span class="t"></span><span class="c"></span>';
-    d.querySelector('.n').textContent = 'PV ' + String(s.pv || i + 1).padStart(2, '0') + ' · ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
-    d.querySelector('.t').textContent = s.title;
-    d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
+    d.querySelector('.n').textContent = 'PV ' + String(s.pv || i + 1).padStart(2, '0') + ' ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
+    d.querySelector('.t').textContent = window.MV_STORY.__text(s.title);
+    d.querySelector('.c').textContent = window.MV_STORY.__text(s.cast) + '　' + fmt(s.dur);
     d.onclick = () => {
       hideList();
       const ready = window.MV_SONG_DATA && window.MV_SONG_DATA[s.id];

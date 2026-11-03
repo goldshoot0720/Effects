@@ -30,7 +30,7 @@ const songAlias = id => ({ 's102-en':'s103', 's102-ja':'s104',
 // emulated GPU canvas, and every frame is read back. In a browser it stays
 // on the GPU for smooth playback.
 const RENDER = qs.has('render');
-const MAIN = cvs.getContext('2d', RENDER ? { willReadFrequently: true } : undefined);
+const MAIN = window.MV_STORY.__cleanCanvas(cvs.getContext('2d', RENDER ? { willReadFrequently: true } : undefined));
 let ctx = MAIN;
 // draw something once into its own canvas and keep it: the static layers of
 // each background are baked, so a frame only paints what moves
@@ -40,7 +40,7 @@ function bake(key, fn, w, h) {
   if (c) return c;
   c = document.createElement('canvas'); c.width = w || W; c.height = h || H;
   const keep = ctx;
-  ctx = c.getContext('2d');
+  ctx = window.MV_STORY.__cleanCanvas(c.getContext('2d'));
   try { fn(); } finally { ctx = keep; }
   BAKED.set(key, c);
   return c;
@@ -644,7 +644,7 @@ function taskbar(t, label) {
   font(22, 900); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(label, 93, H - 30);
   font(22, 700); ctx.fillStyle = '#2a1d3a'; ctx.textAlign = 'left';
-  ctx.fillText(SONG.title + '　·　' + SONG.cast, 190, H - 30);
+  ctx.fillText(SONG.title + '　' + SONG.cast, 190, H - 30);
 }
 
 /* ------------------------------- HUD -------------------------------- */
@@ -660,19 +660,19 @@ function hud(t, T, seg, dark) {
   ctx.font = `600 22px ${MONO}`;
   const back = dark ? 'rgba(255,255,255,.55)' : 'rgba(10,6,24,.35)';
   const plate = (x, y, w, h) => { ctx.fillStyle = back; rrect(x, y, w, h, 8); ctx.fill(); };
-  const tlw = Math.max(ctx.measureText(SONG.title + ' / ' + SONG.cast).width, ctx.measureText(seg.label).width) + 24;
+  const tlw = Math.max(ctx.measureText(SONG.title + '  ' + SONG.cast).width, ctx.measureText(seg.label).width) + 24;
   plate(m + 8, m + 10, tlw, 70); plate(W - m - 8 - 250, m + 10, 250, 70);
   plate(m + 8, H - m - 50, 150, 40); plate(W - m - 8 - 120, H - m - 50, 120, 40);
   ctx.fillStyle = ink; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-  ctx.fillText(SONG.title + ' / ' + SONG.cast, m + 20, m + 18);
+  ctx.fillText(SONG.title + '  ' + SONG.cast, m + 20, m + 18);
   ctx.fillText(seg.label, m + 20, m + 50);
   const f = Math.floor(T * 30 + 1e-6), s = Math.floor(f / 30);
   ctx.textAlign = 'right';
-  ctx.fillText(p2(Math.floor(s / 3600)) + ':' + p2(Math.floor(s / 60) % 60) + ':' + p2(s % 60) + ':' + p2(f % 30), W - m - 20, m + 18);
+  ctx.fillText(p2(Math.floor(s / 3600)) + ' ' + p2(Math.floor(s / 60) % 60) + ' ' + p2(s % 60) + ' ' + p2(f % 30), W - m - 20, m + 18);
   const bn = (t - AA.beat0) / BEAT, bars = Math.max(1, Math.ceil((DUR - AA.beat0) / BEAT / 4));
-  ctx.fillText('BAR ' + p3(clamp(Math.floor(bn / 4) + 1, 1, bars)) + ' / ' + p3(bars), W - m - 20, m + 50);
+  ctx.fillText('BAR ' + p3(clamp(Math.floor(bn / 4) + 1, 1, bars)) + '  ' + p3(bars), W - m - 20, m + 50);
   ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
-  ctx.fillText('♩=' + AA.bpm.toFixed(1), m + 20, H - m - 18);
+  ctx.fillText('♩=' + Math.round(AA.bpm), m + 20, H - m - 18);
   // four squares, the beat inside the bar
   const q = ((Math.floor(bn) % 4) + 4) % 4;
   for (let i = 0; i < 4; i++) {
@@ -844,7 +844,7 @@ function frame(T, dt) {
 /* ------------------------------- boot ------------------------------- */
 function apply(d, i) {
   window.MV_STORY.__setLanguage(d);
-  d = { ...d, cast: window.MV_STORY.__credits(d.cast) };
+  d = window.MV_STORY.__displaySong(d);
   SONG = d; AA = d.analysis; NO = d.pv || i + 1;
   BANDS = b64u8(AA.bands); RMSA = b64u8(AA.rms); NB = AA.bandCount;
   DUR = AA.duration; BEAT = 60 / AA.bpm;
@@ -867,7 +867,7 @@ function apply(d, i) {
   BAKED.clear();
   lastT = -1; onsetIdx = 0;
   for (const k in F) F[k] = 0;
-  document.title = d.title + ' · 第一版本 · 二次元 PV';
+  document.title = d.title + ' 第一版本 二次元 PV';
 }
 // load a song by id (its data file on demand), then call back.
 // repeated taps share one script tag so a slow phone does not inject it twice.
@@ -884,7 +884,7 @@ function load(id, cb) {
   if (songLoading.has(id)) return;
   songLoading.add(id);
   const s = document.createElement('script');
-  s.src = 'data/song/' + meta.id + '.js?v=2.6.0';
+  s.src = 'data/song/' + meta.id + '.js?v=2.7.0';
   s.onload = () => {
     songLoading.delete(id);
     const list = songWaiters[id] || [];
@@ -1009,9 +1009,9 @@ function player() {
     const d = document.createElement('button');
     d.className = 'card';
     d.innerHTML = '<span class="n"></span><span class="t"></span><span class="c"></span>';
-    d.querySelector('.n').textContent = 'PV ' + p2(s.pv || i + 1) + ' · ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
-    d.querySelector('.t').textContent = s.title;
-    d.querySelector('.c').textContent = s.cast + '　·　' + fmt(s.dur);
+    d.querySelector('.n').textContent = 'PV ' + p2(s.pv || i + 1) + ' ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
+    d.querySelector('.t').textContent = window.MV_STORY.__text(s.title);
+    d.querySelector('.c').textContent = window.MV_STORY.__text(s.cast) + '　' + fmt(s.dur);
     d.onclick = () => { hideList(); gesturePick(i); };
     grid.appendChild(d);
   });

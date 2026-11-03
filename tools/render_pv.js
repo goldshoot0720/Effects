@@ -144,12 +144,12 @@ const CHROME_ARGS = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '
 async function one(chromium, s, cat, o) {
   const no = String(s.pv || cat.indexOf(s) + 1).padStart(2, '0');
   const language = s.lang && s.lang !== 'zh' ? '_' + s.lang.toUpperCase() : '';
-  const base = path.join(o.out, `PV${no}${language}_${safe(s.title)}`);
-  const tag = `[${no}${language} ${s.title}]`;
   const browser = await chromium.launch({ args: CHROME_ARGS });
   try {
     const page = await openSong(browser, s.id);
     const info = await page.evaluate(() => window.__pv.info());
+    const base = path.join(o.out, `PV${no}${language}_${safe(info.title)}`);
+    const tag = `[${no}${language} ${info.title}]`;
     console.log(`▶ ${tag} ${clock(info.length)}`);
     if (o.preview) await preview(page, info, o, base);
     else {

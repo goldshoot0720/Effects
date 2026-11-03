@@ -99,6 +99,27 @@ const FENG = CAST.feng, TU = CAST.tu;
 
 const S = {};   /* the nine stories */
 
+// Display copy only: keep original lyrics, cue times, IDs and paths intact.
+// Hyphenated English words retain a word boundary; Japanese long vowels are
+// letters, not punctuation, and must survive (e.g. クロード / ユー).
+S.__text = value => String(value ?? '')
+  .replace(/([A-Za-z])\p{Pd}+(?=[A-Za-z])/gu, '$1 ')
+  .replace(/\p{P}/gu, '')
+  .replace(/[ \t]{2,}/g, ' ');
+S.__displaySong = song => ({ ...song,
+  title: S.__text(song.title), cast: S.__text(S.__credits(song.cast)),
+  tagline: S.__text(song.tagline),
+  lines: song.lines.map(line => ({ ...line, text: S.__text(line.text),
+    ...(line.translation ? {translation:S.__text(line.translation)} : {}) }))
+});
+S.__cleanCanvas = context => {
+  for (const method of ['fillText', 'strokeText', 'measureText']) {
+    const original = context[method].bind(context);
+    context[method] = (value, ...args) => original(S.__text(value), ...args);
+  }
+  return context;
+};
+
 /* ============================ s023 百年夢 ========================== */
 /* 1994 年的小工務所，一張圖紙長成一座城市。鏡頭沒離開過那張桌子。 */
 S.s023 = {
