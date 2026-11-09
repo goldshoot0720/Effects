@@ -528,7 +528,7 @@ function speech(str, p, tail, t, k) {
   const shown = [...str].slice(0, Math.ceil([...str].length * clamp(p * 2.2, 0, 1))).join('');
   let left = [...shown].length;
   rs.forEach((r, i) => {
-    const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length + 1;
+    const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length;
     font(px); const fullW = ctx.measureText(r).width;
     ctx.textAlign = 'left';
     ctx.fillText(s, cx - fullW / 2, cy + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
