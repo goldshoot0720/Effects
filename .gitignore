@@ -14,3 +14,9 @@ Thumbs.db
 
 # intermediate cut-outs from tools/build_cast.py --debug
 /build/
+
+# agent workspace data (local only)
+/.workbuddy-ai/
+
+# previous versions of the cast art, kept locally for comparison
+/art/cast/_old/
