@@ -41,5 +41,13 @@ assert.equal(story.__who('yu').name, '魚妹');
 assert(!ids(story.__cast()).includes('claude'));
 assert(!ids(story.__cast()).includes('gpt'));
 for (const id of lead) assert(context.window.MV_CAST_ART[id]?.body.startsWith('data:image/webp;base64,'));
+for (const [id, rig] of Object.entries(context.window.MV_CAST_ART)) {
+  assert.match(rig.portrait, /^data:image\/webp;base64,/, id);
+  const [left, top, right, bottom] = rig.portraitBox;
+  const [x, y] = rig.face;
+  // The full-body texture rounds to whole pixels, while the portrait keeps exact coordinates.
+  assert(0 <= left && left < x && x < right && right <= rig.size[0] + .5, id);
+  assert(0 <= top && top < y && y < bottom && bottom <= rig.size[1] + .5, id);
+}
 assert.equal(context.window.MV_CAST_ART.gpt.rigid, true);
-console.log('Cast, language, isolated replacement and Feng/Tu centre positioning checks passed.');
+console.log('Cast, portrait, language, isolated replacement and Feng/Tu centre positioning checks passed.');

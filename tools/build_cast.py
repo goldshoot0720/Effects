@@ -350,6 +350,20 @@ def data_uri(arr, size, components):
     return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
+def portrait_art(c, im):
+    """Save the original head and upper body before splitting off the sleeves."""
+    h, w, _ = im.shape
+    top = np.flatnonzero(np.any(im[..., 3] > 128, axis=1))[0]
+    chest = c["waist"] + (c["pelvis"][1] - c["waist"]) * .2
+    half = round((chest - top) * .72 + 32)
+    x = c["face"][0]
+    left, right = max(0, x - half), min(w, x + half)
+    top, bottom = max(0, int(top) - 8), min(h, round(chest + 80))
+    pixels = im[top:bottom, left:right]
+    size = (round((right - left) * .8), round((bottom - top) * .8))
+    return scaled([left, top, right, bottom], OUT_SCALE), data_uri(pixels, size, 1)
+
+
 def main():
     debug = "--debug" in sys.argv
     only = next((arg for arg in sys.argv[1:] if not arg.startswith("--")), None)
@@ -373,6 +387,7 @@ def main():
         size = (round(w * k), round(h * k))
         rig = {key: scaled(v, k) for key, v in c.items()
                if key in ("neck", "waist", "pelvis", "face", "hem", "l", "r", "tail")}
+        rig["portraitBox"], rig["portrait"] = portrait_art(c, im)
         rig.update(size=list(size), armCut=round(c["arm"]["cut"] * k, 1), h=c["h"], rigid=bool(c.get("rigid")),
                    body=data_uri(body, size, 1), arms=data_uri(arms, size, 2))
         out[c["id"]] = rig

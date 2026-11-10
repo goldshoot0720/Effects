@@ -150,6 +150,16 @@ function uploadMesh(d) {
   return { vao, count: d.idx.length };
 }
 
+function portraitMesh([left, top, right, bottom]) {
+  return uploadMesh({
+    pos: new Float32Array([left, top, right, top, left, bottom, right, bottom]),
+    uv: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+    bone: new Float32Array(16),
+    w: new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]),
+    idx: new Uint32Array([0, 1, 3, 0, 3, 2])
+  });
+}
+
 function alphaOf(img) {
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -205,7 +215,7 @@ function buildMesh(alpha, cell, weightFn, bounds) {
 
 /* ------------------------------- puppet ----------------------------- */
 class Puppet {
-  constructor(rig, bodyImg, armsImg) {
+  constructor(rig, bodyImg, armsImg, portraitImg) {
     this.rig = rig;
     this.k = rig.size[1] / (rig.size[1] > 740 ? 1536 : 1448);   // rig px per sheet px
     const L = rig.l, Rr = rig.r;
@@ -224,10 +234,11 @@ class Puppet {
     this.ankleY = Math.max(L.ank[1], Rr.ank[1]);
     const cell = 7;
     this.bounds = [];
-    this.body = uploadMesh(buildMesh(bodyA, cell, (x, y) => this.bodyWeights(x, y), this.bounds));
-    this.arms = uploadMesh(buildMesh(alphaOf(armsImg), cell, (x, y) => this.armWeights(x, y), this.bounds));
-    this.texBody = texture(bodyImg);
-    this.texArms = texture(armsImg);
+    this.parts = [
+      [uploadMesh(buildMesh(bodyA, cell, (x, y) => this.bodyWeights(x, y), this.bounds)), texture(bodyImg)],
+      [uploadMesh(buildMesh(alphaOf(armsImg), cell, (x, y) => this.armWeights(x, y), this.bounds)), texture(armsImg)]
+    ];
+    if (portraitImg) this.portrait = [[portraitMesh(rig.portraitBox), texture(portraitImg)]];
     this.bones = new Float32Array(NB * 9);
     this.joints = {};
   }
@@ -330,12 +341,12 @@ class Puppet {
     return [x0, y0, x1, y1];
   }
 
-  draw(offset, tint, levels) {
+  draw(offset, tint, levels, portrait) {
     gl.uniformMatrix3fv(loc.uBones, false, this.bones);
     gl.uniform2f(loc.uOffset, offset[0], offset[1]);
     gl.uniform4f(loc.uTint, tint[0], tint[1], tint[2], tint[3]);
     gl.uniform1f(loc.uLevels, levels);
-    for (const [mesh, tex] of [[this.body, this.texBody], [this.arms, this.texArms]]) {
+    for (const [mesh, tex] of portrait ? this.portrait : this.parts) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(loc.uTex, 0);
@@ -354,8 +365,9 @@ function load(id) {
   if (!art || !initGL()) return;
   PENDING[id] = 1;
   const img = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
-  Promise.all([img(art.body), img(art.arms)]).then(([b, a]) => {
-    try { PUP[id] = new Puppet(art, b, a); } catch (e) { console.warn('[puppet]', id, e.message); }
+  const portrait = art.portrait && art.portraitBox ? img(art.portrait).catch(() => null) : null;
+  Promise.all([img(art.body), img(art.arms), portrait]).then(([b, a, p]) => {
+    try { PUP[id] = new Puppet(art, b, a, p); } catch (e) { console.warn('[puppet]', id, e.message); }
   }).catch(e => console.warn('[puppet] 素材載入失敗', id, e));
 }
 function preload() { if (window.MV_CAST_ART) for (const id in window.MV_CAST_ART) load(id); }
@@ -553,13 +565,24 @@ function draw(ctx, o) {
   if (glc.width !== W || glc.height !== H) { glc.width = W; glc.height = H; }
   const rig = pp.rig;
   const pose = o.pose ? { ...o.pose } : dancePose(o.move || 'idle', o.beat || 0, o.i || 0, o.t || 0);
+  const portrait = Boolean(o.box && pp.portrait);
   let model, bx, by, bw2, bh2;
   if (o.box) {
     // the close-up: head and shoulders filling a portrait window
     const bb = o.box, chest = rig.waist + (rig.pelvis[1] - rig.waist) * .2;
-    const s = bb.h * .98 / (chest - pp.top);
-    model = chain(T(Math.round(bb.x + bb.w / 2), Math.round(bb.y + 2)), Sc(s, s), T(-rig.face[0], -pp.top));
-    pose.grounded = false;
+    const s = bb.h * (portrait ? .94 : .98) / (chest - pp.top);
+    const x = Math.round(bb.x + bb.w / 2), y = Math.round(bb.y + 2);
+    if (portrait) {
+      // Move the intact portrait as a whole, so shoulder seams cannot split.
+      const sway = clamp(pose.chest + pose.head, -.2, .2) * .16;
+      model = chain(T(x + pose.x * bb.w * .08, y + bb.h * (.026 + pose.y * .13)),
+                    R(sway), Sc(s), T(-rig.face[0], -pp.top));
+      toGL(model, pp.bones, B.pelvis * 9);
+    } else {
+      model = chain(T(x, y), Sc(s), T(-rig.face[0], -pp.top));
+      pose.grounded = false;
+      pp.solve(pose, model, false);
+    }
     bx = Math.floor(bb.x); by = Math.floor(bb.y); bw2 = Math.ceil(bb.w); bh2 = Math.ceil(bb.h);
   } else if (o.move === 'lie') {
     // lying on its side, head to the left: body-down becomes screen-right,
@@ -572,8 +595,8 @@ function draw(ctx, o) {
     const s = o.h * (rig.h || 1) / (pp.foot - pp.top);
     model = chain(T(Math.round(o.x), Math.round(o.y)), Sc(o.flip ? -s : s, s), T(-rig.pelvis[0], -pp.foot));
   }
-  const [x0, y0, x1, y1] = pp.solve(pose, model, !o.box);
   if (!o.box) {
+    const [x0, y0, x1, y1] = pp.solve(pose, model, true);
     bx = Math.floor(x0) - 3; by = Math.floor(y0) - 3;
     bw2 = Math.ceil(x1) + 3 - bx; bh2 = Math.ceil(y1) + 3 - by;
   }
@@ -593,7 +616,7 @@ function draw(ctx, o) {
   gl.uniform1f(loc.uSmooth, o.smooth ? 1 : 0);
   if (o.smooth) {
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels);
+    pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels, portrait);
     gl.disable(gl.BLEND);
     gl.disable(gl.SCISSOR_TEST);
     smoothOut(ctx, o, bx, by, bw2, bh2);
@@ -601,9 +624,9 @@ function draw(ctx, o) {
   }
   if (o.outline !== false) {
     const oc = hex(o.outline || '#140b0c');
-    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1]]) pp.draw(d, oc, levels);
+    for (const d of [[-1, 0], [1, 0], [0, -1], [0, 1]]) pp.draw(d, oc, levels, portrait);
   }
-  pp.draw([0, 0], [0, 0, 0, 0], levels);
+  pp.draw([0, 0], [0, 0, 0, 0], levels, portrait);
   gl.disable(gl.SCISSOR_TEST);
   ctx.drawImage(glc, bx, by, bw2, bh2, bx, by, bw2, bh2);
   return true;
