@@ -1,6 +1,6 @@
 # 鋒兄宇宙 · PV
 
-Effects 首頁是**鋒兄宇宙音樂影像圖鑑**。從上方的「歌詞 PV」可進入站內曲庫，依歌曲篩選中文、英文、日文、粵語版本並播放二次元 PV。直接開啟 `index.html` 也可離線使用。
+Effects 線上首頁預設開啟**鋒兄宇宙音樂影像圖鑑**的歌詞 PV 曲庫，選中 `s102`。曲庫可依歌曲篩選中文、英文、日文、粵語版本並播放二次元 PV。直接開啟 `index.html` 也可離線使用。
 角色圖鑑收錄十位角色的全身立繪與三視圖，可拖曳、滑動或按方向鍵切換正面、側面和背面。首頁也可切換到 90 年代 PC-98 像素 MV 或手足舞蹈素材庫。
 每一首先有自己的故事觀（見 [STORY.md](STORY.md)）。
 
@@ -21,7 +21,7 @@ Effects 首頁是**鋒兄宇宙音樂影像圖鑑**。從上方的「歌詞 PV�
 人物視窗僅顯示角色名字，不加 `.pet`。其他歌曲仍使用原本的牙妹與魚妹。
 新角色素材與產圖規格見 [art/cast/README.md](art/cast/README.md)。
 
-* 線上版：<https://effects-nine.vercel.app>（首頁）· <https://effects-nine.vercel.app/#library>（歌詞 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
+* 線上版：<https://effects-nine.vercel.app/?song=s102#library>（歌詞 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（既有 `.zip` 桌面版 / `.apk` 手機版 / `.mp4`；此次曲庫更新不會改寫既有附件）
 
 ---

@@ -68,11 +68,17 @@ precision mediump float;
 in vec2 vUV;
 uniform sampler2D uTex;
 uniform vec4 uTint;
+uniform vec4 uForearm;
 uniform float uLevels, uSmooth;
 out vec4 o;
 const float BY[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
 void main() {
   vec4 c = texture(uTex, vUV);
+  if (uForearm.w > 0.0) {
+    float front = 1.0 - smoothstep(uForearm.x, uForearm.y, vUV.x)
+                + smoothstep(uForearm.z, uForearm.w, vUV.x);
+    c *= front;
+  }
   // smooth: soft edges and full colour (the anime PV), premultiplied out
   if (uSmooth > 0.5) {
     if (c.a < 0.004) discard;
@@ -109,7 +115,7 @@ function initGL() {
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     for (const n of ['aPos', 'aUV', 'aBone', 'aW']) loc[n] = gl.getAttribLocation(prog, n);
-    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uLevels', 'uSmooth']) loc[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uForearm', 'uLevels', 'uSmooth']) loc[n] = gl.getUniformLocation(prog, n);
     gl.disable(gl.BLEND);
     return true;
   } catch (e) {
@@ -219,6 +225,7 @@ class Puppet {
     this.rig = rig;
     this.k = rig.size[1] / (rig.size[1] > 740 ? 1536 : 1448);   // rig px per sheet px
     const L = rig.l, Rr = rig.r;
+    this.forearm = new Float32Array(4);
     this.rest = {
       lu: dir(L.sh, L.el), lf: dir(L.el, L.wr), ru: dir(Rr.sh, Rr.el), rf: dir(Rr.el, Rr.wr),
       lt: dir(L.hip, L.knee), ls: dir(L.knee, L.ank), rt: dir(Rr.hip, Rr.knee), rs: dir(Rr.knee, Rr.ank)
@@ -285,9 +292,9 @@ class Puppet {
     const left = x < g.pelvis[0];
     const s = left ? g.l : g.r;
     const d = Math.abs(x - s.sh[0]), de = Math.abs(s.el[0] - s.sh[0]);
-    const wf = smoothstep(de - 20 * k, de + 20 * k, d);
+    const wf = smoothstep(de - 32 * k, de + 32 * k, d);
     const cut = left ? g.armCut : 2 * ((g.l.sh[0] + g.r.sh[0]) / 2) - g.armCut;
-    const wc = 1 - smoothstep(0, 26 * k, Math.abs(x - cut));
+    const wc = 1 - smoothstep(0, Math.max(48 * k, de * .8), Math.abs(x - cut));
     const u = left ? B.lu : B.ru, f = left ? B.lf : B.rf;
     return [[u, (1 - wf) * (1 - wc)], [f, wf * (1 - wc)], [B.chest, wc]];
   }
@@ -304,10 +311,27 @@ class Puppet {
     };
     const chest = bone(pelvis, this.waistPt, pose.chest);
     const head = bone(chest, g.neck, pose.head);
-    const lu = bone(chest, L.sh, pose.lu - rest.lu, rest.lu, pose.lul);
-    const lf = bone(lu, L.el, pose.lf - rest.lf, rest.lf, pose.lfl);
-    const ru = bone(chest, Rr.sh, pose.ru - rest.ru, rest.ru, pose.rul);
-    const rf = bone(ru, Rr.el, pose.rf - rest.rf, rest.rf, pose.rfl);
+    // A flat sleeve folds over itself if its upper arm swings too far inward.
+    const shoulderLimit = 98 * DEG, elbowLimit = 70 * DEG;
+    const leftRest = rest.lu + pose.chest, rightRest = rest.ru + pose.chest;
+    const leftAngle = leftRest + clamp(wrap(pose.lu - leftRest), -shoulderLimit, shoulderLimit);
+    const rightAngle = rightRest + clamp(wrap(pose.ru - rightRest), -shoulderLimit, shoulderLimit);
+    const leftForearm = leftAngle + clamp(wrap(pose.lf - leftAngle), -elbowLimit, elbowLimit);
+    const rightForearm = rightAngle + clamp(wrap(pose.rf - rightAngle), -elbowLimit, elbowLimit);
+    const lu = bone(chest, L.sh, leftAngle - rest.lu, rest.lu, pose.lul);
+    const lf = bone(lu, L.el, leftForearm - rest.lf, rest.lf, pose.lfl);
+    const ru = bone(chest, Rr.sh, rightAngle - rest.ru, rest.ru, pose.rul);
+    const rf = bone(ru, Rr.el, rightForearm - rest.rf, rest.rf, pose.rfl);
+    const sleeveBlend = 22 * this.k, width = g.size[0];
+    const rightCut = L.sh[0] + Rr.sh[0] - g.armCut;
+    // Let an inward-pointing upper arm come forward without bringing the
+    // texture's cut edge with it. Blend as the gesture crosses the torso.
+    const frontL = lerp(L.el[0], g.armCut - sleeveBlend, smoothstep(0, .3, Math.cos(leftAngle - pose.chest)));
+    const frontR = lerp(Rr.el[0], rightCut + sleeveBlend, smoothstep(0, .3, -Math.cos(rightAngle - pose.chest)));
+    this.forearm[0] = (frontL - sleeveBlend) / width;
+    this.forearm[1] = (frontL + sleeveBlend) / width;
+    this.forearm[2] = (frontR - sleeveBlend) / width;
+    this.forearm[3] = (frontR + sleeveBlend) / width;
     const lt = bone(pelvis, L.hip, pose.lt - rest.lt);
     const ls = bone(lt, L.knee, pose.ls - rest.ls);
     const rt = bone(pelvis, Rr.hip, pose.rt - rest.rt);
@@ -346,12 +370,25 @@ class Puppet {
     gl.uniform2f(loc.uOffset, offset[0], offset[1]);
     gl.uniform4f(loc.uTint, tint[0], tint[1], tint[2], tint[3]);
     gl.uniform1f(loc.uLevels, levels);
-    for (const [mesh, tex] of portrait ? this.portrait : this.parts) {
+    gl.uniform1i(loc.uTex, 0);
+    const paint = ([mesh, tex]) => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.uniform1i(loc.uTex, 0);
       gl.bindVertexArray(mesh.vao);
       gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+    };
+    if (portrait) paint(this.portrait[0]);
+    else if (this.rig.rigid || tint[3] > 0) {
+      this.parts.forEach(paint);
+    } else {
+      const [body, arms] = this.parts;
+      // Keep the upper sleeve behind the torso. Hands and forearms can
+      // still cross in front without exposing the shoulder cut.
+      paint(arms);
+      paint(body);
+      gl.uniform4fv(loc.uForearm, this.forearm);
+      paint(arms);
+      gl.uniform4f(loc.uForearm, 0, 0, 0, 0);
     }
     gl.bindVertexArray(null);
   }
