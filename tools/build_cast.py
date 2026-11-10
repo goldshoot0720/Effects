@@ -44,7 +44,7 @@ CHARS = [
                   bands=[(25, -34, 23), (110, -25, 22), (120, -46, 42), (132, -52, 50),
                          (156, -47, 44), (185, -45, 44), (207, -41, 39), (250, -41, 35),
                          (284, -40, 33), (330, -41, 29), (365, -45, 30), (407, -55, 34)]),
-         tail=dict(root=(750, 975), tip=(974, 766), minx=855, miny=1012, top=755)),
+         tail=dict(root=(750, 975), tip=(974, 766), minx=855, miny=1012, top=755, bottom=1110)),
     dict(id="gugu", file="gugu.jpg", h=0.88, seeds=[],
          neck=(512, 385), waist=650, pelvis=(510, 800), face=(505, 268), hem=860,
          l=dict(sh=(365, 455), el=(238, 452), wr=(115, 446), tip=(15, 440),
@@ -58,14 +58,18 @@ CHARS = [
                 hip=(437, 790), knee=(413, 1105), ank=(384, 1420)),
          r=dict(sh=(650, 355), el=(786, 355), wr=(889, 355), tip=(1008, 355),
                 hip=(577, 790), knee=(603, 1105), ank=(625, 1420)),
-         arm=dict(cut=364, cy=355, bands=[(13, 6), (70, 16), (131, 19), (213, 41), (292, 50), (349, 55)])),
+         arm=dict(cut=364, cy=355,
+                  bands=[(13, 6), (70, 16), (131, 19), (213, 41), (292, -52, 58),
+                         (325, -54, 66), (349, -56, 76), (364, -60, 91)])),
     dict(id="tu", file="tu.jpg", h=0.97,
          neck=(508, 275), waist=614, pelvis=(508, 790), face=(508, 185), hem=805,
          l=dict(sh=(383, 372), el=(240, 372), wr=(131, 372), tip=(8, 372),
                 hip=(439, 790), knee=(410, 1103), ank=(372, 1417)),
          r=dict(sh=(633, 372), el=(775, 372), wr=(884, 372), tip=(1008, 372),
                 hip=(580, 790), knee=(607, 1103), ank=(636, 1417)),
-         arm=dict(cut=383, cy=372, bands=[(15, 7), (75, 16), (139, 18), (225, 28), (308, 49), (368, 53)])),
+         arm=dict(cut=383, cy=372,
+                  bands=[(15, 7), (75, 16), (139, 18), (225, 28), (308, 49),
+                         (350, -61, 56), (368, -70, 62), (377, -74, 74), (383, -76, 90)])),
     dict(id="bubu", file="bubu.jpg", h=0.95,
          polygon=[(410, 192), (455, 238), (505, 244), (555, 238), (606, 192), (604, 262), (612, 305),
                   (602, 362), (610, 400), (612, 428), (700, 440), (858, 452), (962, 460), (1004, 478),
@@ -84,7 +88,7 @@ CHARS = [
          r=dict(sh=(610, 492), el=(735, 496), wr=(880, 494), tip=(1006, 492),
                 hip=(570, 835), knee=(598, 1040), ank=(612, 1262)),
          arm=dict(cut=392, cy=498, bands=[(0, 42), (150, 42), (160, 62), (392, 72)]),
-         tail=dict(root=(655, 945), tip=(805, 815), minx=662, miny=99999, top=770)),
+         tail=dict(root=(655, 945), tip=(805, 815), minx=662, top=770, bottom=1020)),
     dict(id="baibai", file="baibai.jpg", h=0.95,
          polygon=[(434, 132), (482, 172), (540, 176), (600, 170), (650, 130), (652, 214), (645, 282),
                   (640, 322), (690, 358), (740, 368), (950, 392), (1000, 402), (1046, 408), (1066, 428),
@@ -103,7 +107,7 @@ CHARS = [
          r=dict(sh=(670, 422), el=(805, 424), wr=(945, 428), tip=(1066, 428),
                 hip=(622, 790), knee=(628, 1010), ank=(648, 1228)),
          arm=dict(cut=404, cy=426, bands=[(0, 40), (150, 42), (170, 64), (404, 66)]),
-         tail=dict(root=(700, 950), tip=(860, 830), minx=705, miny=99999, top=790)),
+         tail=dict(root=(700, 950), tip=(860, 830), minx=705, top=790, bottom=1030)),
     dict(id="ya", file="ya.jpg", h=0.92,
          seeds=[(338, 228), (677, 227), (407, 280), (609, 280), (416, 330), (605, 330)],
          neck=(512, 340), waist=590, pelvis=(512, 810), face=(500, 240), hem=862,
@@ -315,6 +319,20 @@ def split(c, im):
     return body, arms
 
 
+def clean_layer(layer, count):
+    """Keep the body or the two sleeves and the soft alpha around their edges."""
+    alpha = layer[..., 3]
+    labels, components = ndimage.label(alpha > 24, structure=np.ones((3, 3)))
+    if not components:
+        alpha[:] = 0
+        return layer
+    sizes = np.bincount(labels.ravel())
+    largest = np.argsort(sizes[1:])[-count:] + 1
+    keep = ndimage.binary_dilation(np.isin(labels, largest), iterations=2)
+    alpha[~keep] = 0
+    return layer
+
+
 # ------------------------------------------------------------------ output
 def scaled(v, k):
     if isinstance(v, (list, tuple)):
@@ -324,8 +342,9 @@ def scaled(v, k):
     return round(v * k, 1) if isinstance(v, (int, float)) else v
 
 
-def data_uri(arr, size):
-    im = Image.fromarray(arr, "RGBA").resize(size, Image.LANCZOS)
+def data_uri(arr, size, components):
+    resized = Image.fromarray(arr, "RGBA").resize(size, Image.LANCZOS)
+    im = Image.fromarray(clean_layer(np.array(resized), components))
     buf = io.BytesIO()
     im.save(buf, "WEBP", quality=88, method=6)
     return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
@@ -355,7 +374,7 @@ def main():
         rig = {key: scaled(v, k) for key, v in c.items()
                if key in ("neck", "waist", "pelvis", "face", "hem", "l", "r", "tail")}
         rig.update(size=list(size), armCut=round(c["arm"]["cut"] * k, 1), h=c["h"], rigid=bool(c.get("rigid")),
-                   body=data_uri(body, size), arms=data_uri(arms, size))
+                   body=data_uri(body, size, 1), arms=data_uri(arms, size, 2))
         out[c["id"]] = rig
         if debug:
             Image.fromarray(body, "RGBA").save(os.path.join(ROOT, "build", f"cast_{c['id']}_body.png"))

@@ -162,7 +162,7 @@ function alphaOf(img) {
 }
 
 /* grid mesh over the opaque part of an image, weights from weightFn(x, y) */
-function buildMesh(alpha, cell, weightFn) {
+function buildMesh(alpha, cell, weightFn, bounds) {
   const { a, w, h } = alpha;
   const gx = Math.ceil(w / cell), gy = Math.ceil(h / cell);
   const keep = new Uint8Array(gx * gy);
@@ -181,11 +181,16 @@ function buildMesh(alpha, cell, weightFn) {
   const vert = (i, j) => {
     const k = j * (gx + 1) + i;
     if (vid[k] >= 0) return vid[k];
-    const x = i * cell, y = j * cell;
+    const x = Math.min(i * cell, w), y = Math.min(j * cell, h);
     vid[k] = pos.length / 2;
     pos.push(x, y); uv.push(x / w, y / h);
     const ws = weightFn(x, y).filter(e => e[1] > 1e-4).sort((p, q) => q[1] - p[1]).slice(0, 4);
     const sum = ws.reduce((s, e) => s + e[1], 0) || 1;
+    for (const [id] of ws) {
+      const b = bounds[id] ??= [x, y, x, y];
+      b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y);
+      b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y);
+    }
     for (let n = 0; n < 4; n++) { bone.push(ws[n] ? ws[n][0] : 0); wt.push(ws[n] ? ws[n][1] / sum : 0); }
     return vid[k];
   };
@@ -218,8 +223,9 @@ class Puppet {
     this.foot = foot; this.top = top;
     this.ankleY = Math.max(L.ank[1], Rr.ank[1]);
     const cell = 7;
-    this.body = uploadMesh(buildMesh(bodyA, cell, (x, y) => this.bodyWeights(x, y)));
-    this.arms = uploadMesh(buildMesh(alphaOf(armsImg), cell, (x, y) => this.armWeights(x, y)));
+    this.bounds = [];
+    this.body = uploadMesh(buildMesh(bodyA, cell, (x, y) => this.bodyWeights(x, y), this.bounds));
+    this.arms = uploadMesh(buildMesh(alphaOf(armsImg), cell, (x, y) => this.armWeights(x, y), this.bounds));
     this.texBody = texture(bodyImg);
     this.texArms = texture(armsImg);
     this.bones = new Float32Array(NB * 9);
@@ -229,18 +235,31 @@ class Puppet {
   bodyWeights(x, y) {
     const g = this.rig, k = this.k, tl = g.tail;
     if (g.rigid) return [[B.chest, 1]];
-    if (tl && x > tl.root[0] - 15 * k && y > tl.top && (x > tl.minx || y > tl.miny)) {
-      const w = smoothstep(10 * k, 90 * k, Math.hypot(x - tl.root[0], y - tl.root[1]));
-      return [[B.tail, w], [B.pelvis, 1 - w]];
-    }
+    const body = this.coreWeights(x, y);
+    if (!tl || y <= tl.top || y >= tl.bottom || x <= tl.root[0] - 15 * k) return body;
+    const edge = 48 * k;
+    const side = smoothstep(tl.minx, tl.minx + edge, x);
+    const under = tl.miny == null ? 0 : smoothstep(tl.miny, tl.miny + edge, y);
+    const top = smoothstep(tl.top, tl.top + edge, y);
+    const bottom = tl.bottom == null ? 1 : smoothstep(tl.bottom, tl.bottom - edge, y);
+    const root = smoothstep(tl.root[0] - 15 * k, tl.root[0] + edge, x);
+    const w = Math.max(side, under) * top * bottom * root
+      * smoothstep(10 * k, 90 * k, Math.hypot(x - tl.root[0], y - tl.root[1]));
+    return [...body.map(([bone, weight]) => [bone, weight * (1 - w)]), [B.tail, w]];
+  }
+
+  coreWeights(x, y) {
+    const g = this.rig, k = this.k;
     const cx = g.pelvis[0];
     if (y > g.hem - 30 * k) {
       const side = x < cx ? g.l : g.r;
       let c;
       if (y < side.knee[1]) c = lerp2(side.hip, side.knee, (y - side.hip[1]) / (side.knee[1] - side.hip[1]))[0];
       else c = lerp2(side.knee, side.ank, Math.min(1.6, (y - side.knee[1]) / (side.ank[1] - side.knee[1])))[0];
-      const inLeg = 1 - smoothstep(70 * k, 95 * k, Math.abs(x - c));
-      const wl = smoothstep(g.hem - 30 * k, g.hem + 30 * k, y) * inLeg;
+      const shoe = smoothstep(side.ank[1] - 90 * k, side.ank[1], y);
+      const inLeg = 1 - smoothstep((70 + 30 * shoe) * k, (95 + 35 * shoe) * k, Math.abs(x - c));
+      const wl = smoothstep(g.hem - 30 * k, g.hem + 30 * k, y) * inLeg
+        * smoothstep(0, 24 * k, Math.abs(x - cx));
       const ws = smoothstep(side.knee[1] - 28 * k, side.knee[1] + 28 * k, y);
       const tb = x < cx ? B.lt : B.rt, sb = x < cx ? B.ls : B.rs;
       return [[tb, wl * (1 - ws)], [sb, wl * ws], [B.pelvis, 1 - wl]];
@@ -263,7 +282,7 @@ class Puppet {
   }
 
   /* pose: world angles (radians, y down); model: rig px -> buffer px */
-  solve(pose, model) {
+  solve(pose, model, measure) {
     const g = this.rig, rest = this.rest, L = g.l, Rr = g.r;
     const tl = this.torsoLen;
     const off = [pose.x * tl, pose.y * tl];
@@ -282,17 +301,33 @@ class Puppet {
     const ls = bone(lt, L.knee, pose.ls - rest.ls);
     const rt = bone(pelvis, Rr.hip, pose.rt - rest.rt);
     const rs = bone(rt, Rr.knee, pose.rs - rest.rs);
-    const tail = g.tail ? bone(pelvis, g.tail.root, pose.pelvis + (pose.tail || 0)) : I();
+    const tail = g.tail ? bone(pelvis, g.tail.root, pose.pelvis + (pose.tail || 0) * .7) : I();
     // keep the lower foot on the floor: bent knees make the whole body sink
     const la = apply(ls, L.ank), ra = apply(rs, Rr.ank);
     const ground = this.ankleY - Math.max(la[1], ra[1]) + off[1];
     const M = mul(model, T(0, pose.grounded === false ? 0 : ground));
     const list = [pelvis, chest, head, lu, lf, ru, rf, lt, ls, rt, rs, tail];
-    for (let i = 0; i < NB; i++) toGL(mul(M, list[i]), this.bones, i * 9);
+    // A skinned vertex is a weighted average of these bone transforms.
+    // The union of their transformed bounds therefore contains every pose.
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < NB; i++) {
+      const m = mul(M, list[i]);
+      toGL(m, this.bones, i * 9);
+      const bounds = this.bounds[i];
+      if (!measure || !bounds) continue;
+      const [l, t, r, b] = bounds;
+      const ax = m[0] * l, bx = m[0] * r, cx = m[2] * t, dx = m[2] * b;
+      const ay = m[1] * l, by = m[1] * r, cy = m[3] * t, dy = m[3] * b;
+      x0 = Math.min(x0, m[4] + Math.min(ax, bx) + Math.min(cx, dx));
+      y0 = Math.min(y0, m[5] + Math.min(ay, by) + Math.min(cy, dy));
+      x1 = Math.max(x1, m[4] + Math.max(ax, bx) + Math.max(cx, dx));
+      y1 = Math.max(y1, m[5] + Math.max(ay, by) + Math.max(cy, dy));
+    }
     const J = this.joints, W = (m, p) => apply(M, apply(m, p));
     J.face = W(head, g.face); J.neck = W(chest, g.neck); J.pelvis = W(pelvis, g.pelvis);
     J.lwr = W(lf, L.wr); J.rwr = W(rf, Rr.wr); J.ltip = W(lf, L.tip); J.rtip = W(rf, Rr.tip);
     J.lank = W(ls, L.ank); J.rank = W(rs, Rr.ank);
+    return [x0, y0, x1, y1];
   }
 
   draw(offset, tint, levels) {
@@ -410,8 +445,8 @@ const MOVES = {
     const up = clamp(air * 1.5, 0, 1);
     return P({ y: -.32 * air,
                lu: lerp(120, 240, up), lf: lerp(70, 250, up), ru: lerp(60, 300, up), rf: lerp(110, 290, up),
-               lt: 92 + 22 * crouch - 14 * air, ls: 92 - 28 * crouch + 20 * air,
-               rt: 88 - 22 * crouch + 14 * air, rs: 88 + 28 * crouch - 20 * air,
+               lt: 92 + 20 * crouch + 7 * air, ls: 92 - 20 * crouch + 11 * air,
+               rt: 88 - 20 * crouch - 7 * air, rs: 88 + 20 * crouch - 11 * air,
                head: -6 * crouch + 6 * air, tail: 30 * air });
   },
   heart(b) {
@@ -533,18 +568,15 @@ function draw(ctx, o) {
     const flank = (rig.pelvis[0] - Math.min(rig.l.hip[0], rig.l.sh[0])) * 1.25;
     model = chain(T(Math.round(o.x), Math.round(o.y)), Sc(o.flip ? -1 : 1, 1), R(-Math.PI / 2), Sc(s, s),
                   T(flank - rig.pelvis[0], -(pp.top + pp.foot) / 2));
-    const bw = Math.ceil((pp.foot - pp.top) * s * 1.35) + 8, bh = Math.ceil(rig.size[0] * s * .9) + 8;
-    bx = Math.floor(o.x - bw / 2); by = Math.floor(o.y - bh + 4);
-    bw2 = bw; bh2 = bh + 4;
   } else {
     const s = o.h * (rig.h || 1) / (pp.foot - pp.top);
     model = chain(T(Math.round(o.x), Math.round(o.y)), Sc(o.flip ? -s : s, s), T(-rig.pelvis[0], -pp.foot));
-    // bounding box, to clear and copy only what the figure covers
-    const bw = Math.ceil(rig.size[0] * s * 1.3) + 6, bh = Math.ceil((pp.foot - pp.top) * s * 1.55) + 6;
-    bx = Math.floor(o.x - bw / 2); by = Math.floor(o.y - bh + 6);
-    bw2 = bw; bh2 = bh + 4;
   }
-  pp.solve(pose, model);
+  const [x0, y0, x1, y1] = pp.solve(pose, model, !o.box);
+  if (!o.box) {
+    bx = Math.floor(x0) - 3; by = Math.floor(y0) - 3;
+    bw2 = Math.ceil(x1) + 3 - bx; bh2 = Math.ceil(y1) + 3 - by;
+  }
   if (bx < 0) { bw2 += bx; bx = 0; }
   if (by < 0) { bh2 += by; by = 0; }
   bw2 = Math.min(bw2, W - bx); bh2 = Math.min(bh2, H - by);
@@ -585,7 +617,7 @@ const fctx = FIG.getContext('2d', { willReadFrequently: true });
 const sctx = SIL.getContext('2d', { willReadFrequently: true }), rctx = RIM.getContext('2d', { willReadFrequently: true });
 function smoothOut(ctx, o, bx, by, bw, bh) {
   if (FIG.width < bw || FIG.height < bh) { FIG.width = Math.max(FIG.width, bw); FIG.height = Math.max(FIG.height, bh); }
-  fctx.clearRect(0, 0, bw, bh);
+  fctx.clearRect(0, 0, bw + 2, bh + 2);
   fctx.drawImage(glc, bx, by, bw, bh, 0, 0, bw, bh);
   const rim = o.outline !== false ? (o.rim || 2) : 0, sh = o.shadow;
   if (rim || sh) {
@@ -599,7 +631,7 @@ function smoothOut(ctx, o, bx, by, bw, bh) {
     sctx.globalCompositeOperation = 'source-in';
     sctx.fillStyle = o.outline || '#ffffff'; sctx.fillRect(0, 0, hw, hh);
     sctx.globalCompositeOperation = 'source-over';
-    rctx.clearRect(0, 0, hw + pad * 2, hh + pad * 2);
+    rctx.clearRect(0, 0, hw + pad * 2 + 2, hh + pad * 2 + 2);
     const r2 = rim / 2, n = rim ? 12 : 1;
     for (let k = 0; k < n; k++)
       rctx.drawImage(SIL, 0, 0, hw, hh, pad + Math.cos(k / n * Math.PI * 2) * r2, pad + Math.sin(k / n * Math.PI * 2) * r2, hw, hh);
