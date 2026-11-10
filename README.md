@@ -1,7 +1,6 @@
 # 鋒兄宇宙 · PV
 
-網站預設開啟 [歌詞 PV](https://neweffects.vercel.app/pv.html)。
-**鋒兄宇宙音樂影像圖鑑**可從 `index.html?view=archive` 或離線版開啟。曲庫依九首歌曲整理，可篩選中文、英文、日文、粵語版本並播放二次元 PV。
+Effects 首頁是**鋒兄宇宙音樂影像圖鑑**。從上方的「歌詞 PV」可進入站內曲庫，依歌曲篩選中文、英文、日文、粵語版本並播放二次元 PV。直接開啟 `index.html` 也可離線使用。
 角色圖鑑收錄十位角色的全身立繪與三視圖，可拖曳、滑動或按方向鍵切換正面、側面和背面。首頁也可切換到 90 年代 PC-98 像素 MV 或手足舞蹈素材庫。
 每一首先有自己的故事觀（見 [STORY.md](STORY.md)）。
 
@@ -22,7 +21,7 @@
 人物視窗僅顯示角色名字，不加 `.pet`。其他歌曲仍使用原本的牙妹與魚妹。
 新角色素材與產圖規格見 [art/cast/README.md](art/cast/README.md)。
 
-* 線上版：<https://neweffects.vercel.app/pv.html>（歌詞 PV）· <https://effects-nine.vercel.app/?view=archive>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
+* 線上版：<https://effects-nine.vercel.app>（首頁）· <https://effects-nine.vercel.app/#library>（歌詞 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（既有 `.zip` 桌面版 / `.apk` 手機版 / `.mp4`；此次曲庫更新不會改寫既有附件）
 
 ---
@@ -124,7 +123,7 @@ python tools/build_dance_ref.py     # 重建 data/dance_ref.json / .js
 ## 專案結構
 
 ```
-index.html            歌詞 PV 預設入口；?view=archive 開啟曲庫、圖鑑與二次元 PV 播放器
+index.html            首頁：歌詞 PV 曲庫、角色圖鑑與二次元 PV 播放器
 pixel.html            首頁第二版本：像素 MV（UI / 樣式）
 dance.html            手足舞蹈素材庫：八位班底的姿勢關鍵格瀏覽頁
 DANCE.md              素材說明：影片→角色、姿勢→舞步對照與編舞方式

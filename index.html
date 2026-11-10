@@ -10,16 +10,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="description" content="探索鋒兄宇宙的二次元 PV、四語曲庫與角色三視圖。">
 <title>鋒兄宇宙｜音樂影像圖鑑</title>
-<script>
-  (() => {
-    const { protocol, search } = location;
-    const params = new URLSearchParams(search);
-    if ((protocol === 'https:' || protocol === 'http:') &&
-        params.get('view') !== 'archive' && !params.has('song') && !params.has('render')) {
-      location.replace('https://neweffects.vercel.app/pv.html');
-    }
-  })();
-</script>
 <link rel="stylesheet" href="css/archive.css?v=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23e6fc61%27/%3E%3Cpath d=%27M5 17h4l3-7 5 13 4-10 2 4h4%27 fill=%27none%27 stroke=%27%23211a22%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <style>
@@ -162,10 +152,10 @@
           <span>鋒兄宇宙 <small>EFFECTS STUDIO</small></span>
         </a>
         <nav aria-label="主要導覽">
-          <a href="#library">曲庫</a>
+          <a href="#library">歌詞 PV</a>
           <a href="#characters">角色圖鑑</a>
           <a href="pixel.html">像素 MV <span aria-hidden="true">↗</span></a>
-          <a href="https://neweffects.vercel.app/pv.html">歌詞 PV <span aria-hidden="true">↗</span></a>
+          <a href="dance.html">舞蹈素材 <span aria-hidden="true">↗</span></a>
         </nav>
       </div>
     </header>
