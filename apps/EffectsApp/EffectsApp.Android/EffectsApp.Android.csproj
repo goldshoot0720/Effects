@@ -20,6 +20,12 @@
   <!-- The same offline web experience is stored in the APK's Android assets. -->
   <ItemGroup>
     <AndroidAsset Include="..\..\..\index.html" Link="Assets\Web\index.html" />
+    <AndroidAsset Include="..\..\..\css\archive.css" Link="Assets\Web\css\archive.css" />
+    <AndroidAsset Include="..\..\..\js\archive.js" Link="Assets\Web\js\archive.js" />
+    <AndroidAsset Include="..\..\..\art\reference\*.webp" Link="Assets\Web\art\reference\%(Filename)%(Extension)" />
+    <AndroidAsset Include="..\..\..\dance.html" Link="Assets\Web\dance.html" />
+    <AndroidAsset Include="..\..\..\data\dance_ref.js" Link="Assets\Web\data\dance_ref.js" />
+    <AndroidAsset Include="..\..\..\art\dance\**\*.jpg" Link="Assets\Web\art\dance\%(RecursiveDir)%(Filename)%(Extension)" />
     <AndroidAsset Include="..\..\..\js\player-controls.js" Link="Assets\Web\js\player-controls.js" />
     <AndroidAsset Include="..\..\..\js\px.js" Link="Assets\Web\js\px.js" />
     <AndroidAsset Include="..\..\..\pixel.html" Link="Assets\Web\pixel.html" />

@@ -28,19 +28,23 @@ OUT_SCALE = 0.5            # textures are stored at half the sheet resolution
 
 # "l" / "r" = screen left / screen right (not the character's own left/right).
 # arm: cut = x where the arm leaves the torso, cy = arm centre line,
-#      bands = [(x, half_height)...] from the fingertips to the shoulder.
+#      bands = [(x, half_height)] or [(x, top_offset, bottom_offset)]
+#      from the fingertips to the shoulder.
 # bg:  "flat"    - plain studio backdrop, flood filled from the border
 #      polygon   - a photo background: the outline is traced by hand and the
 #                  edge band is settled by colour (fg / bg nearest cluster)
 CHARS = [
-    dict(id="whale", file="whale.jpg", h=0.9, seeds=[(20, 20), (1045, 60)],
-         neck=(519, 332), waist=646, pelvis=(519, 960), face=(519, 255), hem=1065,
-         l=dict(sh=(305, 477), el=(189, 477), wr=(100, 477), tip=(0, 477),
-                hip=(449, 960), knee=(449, 1203), ank=(449, 1447)),
-         r=dict(sh=(733, 477), el=(848, 477), wr=(937, 477), tip=(1038, 477),
-                hip=(589, 960), knee=(589, 1203), ank=(589, 1447)),
-         arm=dict(cut=305, cy=477, bands=[(6, 10), (54, 21), (106, 14), (176, 44), (244, 45), (292, 71)]),
-         tail=dict(root=(800, 1080), tip=(1040, 930), minx=780, miny=1250, top=900)),
+    dict(id="whale", file="whale.png", alpha=True, h=0.9,
+         neck=(538, 401), waist=628, pelvis=(538, 875), face=(538, 315), hem=1008,
+         l=dict(sh=(408, 472), el=(264, 479), wr=(121, 477), tip=(25, 471),
+                hip=(472, 875), knee=(459, 1098), ank=(459, 1312)),
+         r=dict(sh=(668, 472), el=(812, 479), wr=(955, 477), tip=(1050, 471),
+                hip=(604, 875), knee=(618, 1098), ank=(613, 1312)),
+         arm=dict(cut=408, cy=478, padding=1,
+                  bands=[(25, -34, 23), (110, -25, 22), (120, -46, 42), (132, -52, 50),
+                         (156, -47, 44), (185, -45, 44), (207, -41, 39), (250, -41, 35),
+                         (284, -40, 33), (330, -41, 29), (365, -45, 30), (407, -55, 34)]),
+         tail=dict(root=(750, 975), tip=(974, 766), minx=855, miny=1012, top=755)),
     dict(id="gugu", file="gugu.jpg", h=0.88, seeds=[],
          neck=(512, 385), waist=650, pelvis=(510, 800), face=(505, 268), hem=860,
          l=dict(sh=(365, 455), el=(238, 452), wr=(115, 446), tip=(15, 440),
@@ -248,16 +252,18 @@ def cutout(c):
 def arm_mask(h, w, cfg, center_x):
     xs = np.arange(w)
     bx = [b[0] for b in cfg["bands"]]
-    bh = [b[1] for b in cfg["bands"]]
-    ys = np.arange(h)[:, None]
-    half_l = np.interp(xs, bx, bh)
-    left = (xs[None, :] < cfg["cut"]) & (np.abs(ys - cfg["cy"]) <= half_l[None, :])
-    mx = 2 * center_x - xs
-    half_r = np.interp(mx, bx, bh)
-    right = (mx[None, :] < cfg["cut"]) & (np.abs(ys - cfg["cy"]) <= half_r[None, :])
-    mask = left | right
+    top = [b[1] if len(b) == 3 else -b[1] for b in cfg["bands"]]
+    bottom = [b[-1] for b in cfg["bands"]]
+    ys = np.arange(h)[:, None] - cfg["cy"]
+
+    def side(x):
+        return ((x < cfg["cut"]) &
+                (ys >= np.interp(x, bx, top)) &
+                (ys <= np.interp(x, bx, bottom)))
+
+    mask = side(xs) | side(2 * center_x - xs)
     grown = mask.copy()
-    for d in range(1, 4):
+    for d in range(1, cfg.get("padding", 3) + 1):
         grown[d:] |= mask[:-d]
         grown[:-d] |= mask[d:]
     return grown
@@ -297,7 +303,7 @@ def split(c, im):
     arms[..., 3] = np.where(m, im[..., 3], 0)
     body = fill_behind(im, m)
     cfg = c["arm"]
-    reach = max(b[1] for b in cfg["bands"]) + 30
+    reach = max(abs(offset) for band in cfg["bands"] for offset in band[1:]) + 30
     zone = np.zeros((h, w), bool)
     y0, y1 = int(cfg["cy"] - reach), int(cfg["cy"] + reach)
     cut = cfg["cut"] + 12

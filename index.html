@@ -3,12 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#120c22">
+<meta name="theme-color" content="#14111b">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>鋒兄宇宙 · 第一版本 · 二次元 PV</title>
+<meta name="description" content="探索鋒兄宇宙的二次元 PV、四語曲庫與角色三視圖。">
+<title>鋒兄宇宙｜音樂影像圖鑑</title>
+<script>
+  (() => {
+    const { protocol, search } = location;
+    const params = new URLSearchParams(search);
+    if ((protocol === 'https:' || protocol === 'http:') &&
+        params.get('view') !== 'archive' && !params.has('song') && !params.has('render')) {
+      location.replace('https://neweffects.vercel.app/pv.html');
+    }
+  })();
+</script>
+<link rel="stylesheet" href="css/archive.css?v=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23e6fc61%27/%3E%3Cpath d=%27M5 17h4l3-7 5 13 4-10 2 4h4%27 fill=%27none%27 stroke=%27%23211a22%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <style>
   :root{
     --ink:#2a1d3a; --paper:#fffafc; --pink:#ff5f95; --blue:#38c6ff; --gold:#ffc23a;
@@ -49,7 +62,7 @@
     border-radius:999px;padding:6px 13px;cursor:pointer;text-decoration:none;white-space:nowrap;
     transition:transform .12s,background .12s;touch-action:manipulation}
   .b:active{transform:translateY(1px)}
-  .b:focus-visible,.card:focus-visible,.ver a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  .b:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
   #play{width:44px;height:44px;padding:0;font-size:16px;background:var(--pink);color:#fff}
   .nav{width:34px;height:34px;padding:0;font-size:12px}
   #time{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;min-width:96px}
@@ -59,53 +72,12 @@
   #ttl{font-weight:900;font-size:14px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 auto}
   #cast{font-size:12px;opacity:.65;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
 
-  /* the song list: cards on a pastel desktop */
-  #start{position:fixed;inset:0;z-index:40;overflow:auto;transition:opacity .4s,visibility .4s;
-    background:radial-gradient(circle at 20% 15%,#ffffff 0,#fff4fa 35%,#e7f6ff 100%)}
-  #start::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
-    background-image:radial-gradient(rgba(255,95,149,.35) 2px,transparent 2.5px);background-size:40px 40px}
-  #start.gone{opacity:0;visibility:hidden;pointer-events:none}
-  #start .in{position:relative;max-width:1000px;margin:0 auto;text-align:center;
-    padding:calc(clamp(26px,6vh,64px) + var(--sat)) calc(18px + var(--sar)) calc(48px + var(--sab)) calc(18px + var(--sal))}
-  #start .kick{font-size:12px;font-weight:800;letter-spacing:.5em;opacity:.55}
-  #start h2{margin-top:10px;font-size:clamp(38px,8vw,76px);font-weight:900;line-height:1.1;letter-spacing:.04em;
-    color:#fff;-webkit-text-stroke:0;paint-order:stroke fill;
-    text-shadow:0 0 0 #fff,4px 5px 0 var(--ink)}
-  #start h2 span{display:inline-block;-webkit-text-stroke:10px #fff;paint-order:stroke fill}
-  #start h2 span:nth-child(5n+1){color:var(--pink)} #start h2 span:nth-child(5n+2){color:var(--blue)}
-  #start h2 span:nth-child(5n+3){color:var(--gold)} #start h2 span:nth-child(5n+4){color:#8f6bff}
-  #start h2 span:nth-child(5n+5){color:#3ddc97}
-  #start .pill{display:inline-block;margin-top:16px;padding:8px 22px;border:3px solid var(--ink);border-radius:999px;
-    background:#fff;font-weight:800;font-size:14px;letter-spacing:.12em;box-shadow:4px 5px 0 rgba(42,29,58,.3)}
-  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px;margin-top:34px;text-align:left}
-  .card{display:flex;flex-direction:column;gap:6px;padding:0 0 14px;cursor:pointer;border:3px solid var(--ink);
-    border-radius:18px;background:#fff;color:var(--ink);font-family:var(--ui);overflow:hidden;
-    box-shadow:6px 7px 0 rgba(42,29,58,.28);transition:transform .15s}
-  .card .n{display:block;padding:8px 14px;font-size:12px;font-weight:900;letter-spacing:.18em;color:#fff;
-    border-bottom:3px solid var(--ink);background:var(--pink)}
-  .card:nth-child(4n+2) .n{background:var(--blue)} .card:nth-child(4n+3) .n{background:var(--gold);color:var(--ink)}
-  .card:nth-child(4n+4) .n{background:#8f6bff}
-  .card .n::before{content:"🐾 "}
-  .card .t{padding:0 14px;font-size:17px;font-weight:900;line-height:1.35}
-  .card .c{padding:0 14px;font-size:12px;font-weight:600;opacity:.65}
-  .card.cur{outline:4px solid var(--gold);outline-offset:2px}
-  /* the version switch: 第一版本 (this page) / 第二版本 (pixel.html) */
-  .ver{display:inline-flex;margin-bottom:22px;border:3px solid var(--ink);border-radius:999px;overflow:hidden;
-    background:#fff;box-shadow:4px 5px 0 rgba(42,29,58,.3);font-weight:900;font-size:14px;letter-spacing:.06em}
-  .ver>*{padding:9px 20px;color:var(--ink);text-decoration:none}
-  .ver .on{background:var(--pink);color:#fff}
-  #start .keys{margin-top:30px;font-size:12px;font-weight:600;line-height:2;opacity:.6}
-  #start .keys a{color:inherit}
-  .touch{display:none;margin-top:16px;font-size:13px;font-weight:700;line-height:1.7;opacity:.62}
-
   /* tools/render_pv.js: just the frame */
   html.render #bar,html.render #start,#safe{display:none}
   html.render #pv{cursor:default}
 
   @media (hover:hover){
     .b:hover{background:#fff1f7;transform:translateY(-1px)}
-    .card:hover{transform:translateY(-3px) rotate(-.5deg)}
-    .ver a:hover{background:#fff1f7}
   }
   @media (pointer:coarse){
     .b{min-width:44px;min-height:44px;padding:0 12px;font-size:14px}
@@ -113,8 +85,6 @@
     #play{width:52px;height:48px;font-size:18px}
     #scrub{height:28px}
     #track,#played{top:11px}
-    .card{min-height:72px}
-    .ver>*{min-height:44px;padding:12px 16px}
   }
   @media (max-width:820px){
     #bar{padding:8px 10px 10px;border-radius:18px}
@@ -127,16 +97,6 @@
     #tools{gap:6px;margin-left:auto}
     .wide{display:none}
     .ico{display:inline}
-    #start .kick{letter-spacing:.18em}
-    #start h2{letter-spacing:.02em}
-    #start h2 span{-webkit-text-stroke-width:6px}
-    #start .pill{letter-spacing:.04em;font-size:13px;padding:8px 14px}
-    #grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,168px),1fr));gap:10px;margin-top:20px}
-    .card .t{font-size:16px}
-    .ver{flex-direction:column;align-items:stretch;width:min(100%,320px);border-radius:18px;letter-spacing:.02em}
-    .ver>*{display:flex;align-items:center;justify-content:center;white-space:nowrap;padding:12px 16px}
-    .keys{display:none}
-    .touch{display:block}
   }
   @media (max-width:359px){
     #bar{padding:6px 8px 8px}
@@ -161,22 +121,12 @@
     .b{min-width:36px;min-height:36px;padding:0 8px;font-size:12px}
     .nav{width:36px;height:36px;font-size:13px}
     #play{width:42px;height:36px;font-size:15px}
-    #start .in{padding-top:calc(12px + var(--sat));padding-bottom:calc(16px + var(--sab))}
-    #start h2{font-size:28px}
-    .ver{flex-direction:row;width:auto;border-radius:999px}
-    #grid{margin-top:12px}
-    .keys{display:none}
-    .touch{display:block;margin-top:8px}
   }
 #transport .nav{width:auto;padding:0 12px}
 .volume{display:flex;align-items:center;gap:6px;min-width:0}
 .volume input{width:80px;accent-color:#bda3ff}
 .volume output{font-size:12px;min-width:32px}
 @media(max-width:600px){.volume input{width:60px}.volume output{display:none}}
-  @media (min-width:1100px){
-    #start .in{max-width:1250px}
-    #grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-  }
 </style>
 </head>
 <body>
@@ -203,28 +153,133 @@
   </div>
 </div>
 
-<div id="start">
-  <div class="in">
-    <nav class="ver" aria-label="版本">
-      <span class="on">第一版本 · 二次元 PV</span><a href="pixel.html">第二版本 · 像素 MV</a><a href="dance.html">手足舞蹈素材庫</a>
-    </nav>
-    <div class="kick">鋒 兄 宇 宙 · P V</div>
-    <h2><span>選</span><span>一</span><span>首</span><span>歌</span></h2>
-    <div class="pill">9 首歌 · 中／英／日／粵 · 共 <span id="songCount">36</span> 個版本</div>
-    <div id="grid"></div>
-    <div class="keys">
-      空白 播放／暫停　·　← → 倒退／快進 5 秒　·　S 選歌　·　N P 換歌　·　0–9 跳段　·　F 全螢幕<br>
-      第二版本是原本的像素 MV：<a href="pixel.html">切換到第二版本</a>
-    </div>
-    <div class="touch">點一首就開始。播放中輕點畫面，可以藏起或叫出按鈕。</div>
+<div id="start" tabindex="-1">
+  <div id="home" class="archive">
+    <header class="archive-header">
+      <div class="shell masthead">
+        <a class="wordmark" href="#home" aria-label="鋒兄宇宙首頁">
+          <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 17h4l3-7 5 13 4-10 2 4h4"/></svg></span>
+          <span>鋒兄宇宙 <small>EFFECTS STUDIO</small></span>
+        </a>
+        <nav aria-label="主要導覽">
+          <a href="#library">曲庫</a>
+          <a href="#characters">角色圖鑑</a>
+          <a href="pixel.html">像素 MV <span aria-hidden="true">↗</span></a>
+          <a href="https://neweffects.vercel.app/pv.html">歌詞 PV <span aria-hidden="true">↗</span></a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="signal"></span> EFFECTS ARCHIVE <span class="slash">//</span> VOL. 01</p>
+          <h1 id="hero-title">鋒兄宇宙</h1>
+          <p class="hero-subtitle">音樂影像圖鑑</p>
+          <p class="intro">九首歌，九個故事。從二次元 PV、像素 MV，到角色立繪與三視圖，一起走進鋒兄宇宙。</p>
+          <div class="hero-actions">
+            <a class="action primary" href="#library"><span aria-hidden="true">▶</span> 瀏覽曲庫</a>
+            <a class="action secondary" href="#characters">探索角色 <span aria-hidden="true">↘</span></a>
+          </div>
+        </div>
+        <div class="hero-art" aria-label="精選角色">
+          <div class="hero-index" aria-hidden="true"><span>✦</span> CAST FILES</div>
+          <div class="hero-panels">
+            <button type="button" class="hero-panel cat-panel" data-character="bubu">
+              <img src="art/reference/bubu-front.webp" alt="">
+              <span><small>05 / BUBU</small>喵布布</span>
+            </button>
+            <button type="button" class="hero-panel dragon-panel" data-character="gpt">
+              <img src="art/reference/gpt-front.webp" alt="">
+              <span><small>10 / GPT</small>GPT 娘</span>
+            </button>
+            <button type="button" class="hero-panel orange-panel" data-character="claude">
+              <img src="art/reference/claude-front.webp" alt="">
+              <span><small>09 / CLAUDE</small>Claude 娘</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <dl class="archive-stats">
+        <div><dt>歌曲</dt><dd id="trackCount">09</dd></div>
+        <div><dt>語言版本</dt><dd id="songCount">36</dd></div>
+        <div><dt>角色</dt><dd id="characterCount">10</dd></div>
+      </dl>
+
+      <section id="library" class="archive-section" aria-labelledby="library-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow"><span>01</span> / PV LIBRARY</p>
+            <h2 id="library-title">曲庫</h2>
+            <p>選一首歌，從喜歡的語言開始看 PV。</p>
+          </div>
+          <div id="languageFilters" class="filters" role="group" aria-label="曲庫語言篩選"></div>
+        </div>
+        <div id="grid" class="track-list"></div>
+        <noscript><p>請啟用 JavaScript 以瀏覽曲庫和播放影片。</p></noscript>
+      </section>
+
+      <section id="characters" class="archive-section" aria-labelledby="characters-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow"><span>02</span> / CHARACTER FILES</p>
+            <h2 id="characters-title">角色圖鑑</h2>
+            <p>點開角色，拖曳旋轉檢視，或查看全身立繪與完整三視圖。</p>
+          </div>
+          <a class="action secondary" href="dance.html">舞蹈素材庫 <span aria-hidden="true">↗</span></a>
+        </div>
+        <div id="characterGrid" class="character-grid"></div>
+      </section>
+    </main>
+
+    <footer class="archive-footer">
+      <div class="shell">
+        <span>鋒兄宇宙 <small> / EFFECTS STUDIO</small></span>
+        <a href="#home">回到頂端 <span aria-hidden="true">↑</span></a>
+      </div>
+    </footer>
   </div>
 </div>
 
-<script src="data/songs.js?v=2.6.0"></script>
-<script src="data/cast.js?v=2.5.0"></script>
-<script src="js/puppet.js?v=2.5.0"></script>
-<script src="js/player-controls.js?v=2.4.0"></script>
-<script src="js/story.js?v=2.7.0"></script>
-<script src="js/pv.js?v=2.7.0"></script>
+<dialog id="characterDialog" aria-labelledby="characterName">
+  <div class="dialog-head">
+    <div>
+      <p id="characterCode" class="eyebrow"></p>
+      <h2 id="characterName"></h2>
+    </div>
+    <form method="dialog"><button class="close-dialog" type="submit" aria-label="關閉角色圖鑑">×</button></form>
+  </div>
+  <div class="dialog-tools filters" role="group" aria-label="角色圖片類型">
+    <button type="button" data-view="rotate" aria-pressed="true">旋轉檢視</button>
+    <button type="button" data-view="turn" aria-pressed="false">三視圖</button>
+    <button type="button" data-view="front" aria-pressed="false">全身立繪</button>
+  </div>
+  <div id="turntable" class="turntable" hidden>
+    <div id="turntableStage" class="turntable-stage" tabindex="0" role="group" aria-label="角色旋轉檢視" aria-describedby="turntableHint">
+      <div id="angleFrame" class="angle-frame"><img id="angleImage" alt="" draggable="false"></div>
+      <span id="angleTag" class="angle-tag" aria-hidden="true"></span>
+    </div>
+    <div class="angle-controls filters" role="group" aria-label="選擇角色角度">
+      <button type="button" data-angle="0" aria-pressed="true">正面 <small>0°</small></button>
+      <button type="button" data-angle="1" aria-pressed="false">側面 <small>90°</small></button>
+      <button type="button" data-angle="2" aria-pressed="false">背面 <small>180°</small></button>
+    </div>
+    <p id="turntableHint">左右拖曳、滑動或按方向鍵切換角度</p>
+    <output id="angleStatus" class="visually-hidden" aria-live="polite"></output>
+  </div>
+  <figure id="characterFigure" class="character-figure" hidden>
+    <img id="characterImage" alt="">
+    <figcaption id="characterCaption"></figcaption>
+  </figure>
+</dialog>
+
+<script defer src="data/songs.js?v=2.6.0"></script>
+<script defer src="data/cast.js?v=2.9.0"></script>
+<script defer src="js/puppet.js?v=2.5.0"></script>
+<script defer src="js/player-controls.js?v=2.4.0"></script>
+<script defer src="js/story.js?v=2.7.0"></script>
+<script defer src="js/archive.js?v=1"></script>
+<script defer src="js/pv.js?v=2.8.0"></script>
 </body>
 </html>

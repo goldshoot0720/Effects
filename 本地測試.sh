@@ -52,7 +52,7 @@ case "${1:-}" in
     echo "  啟動本機伺服器： http://localhost:8788"
     echo "  結束請按 Ctrl+C"
     echo
-    ( sleep 1; open_url "http://localhost:8788/index.html" ) &
+    ( sleep 1; open_url "http://localhost:8788/index.html?view=archive" ) &
     exec "$PY" serve.py 8788
     ;;
   *)

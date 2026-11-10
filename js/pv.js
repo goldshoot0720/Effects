@@ -873,12 +873,16 @@ function apply(d, i) {
 // repeated taps share one script tag so a slow phone does not inject it twice.
 const songWaiters = {};
 const songLoading = new Set();
-function load(id, cb) {
+function load(id, cb, isCurrent) {
   id = songAlias(id);
   const i = Math.max(0, CAT.findIndex(s => s.id === id));
   const meta = CAT[i];
   if (!meta) return;
-  const done = () => { apply(window.MV_SONG_DATA[meta.id], i); if (cb) cb(); };
+  const done = () => {
+    if (isCurrent && !isCurrent()) return;
+    apply(window.MV_SONG_DATA[meta.id], i);
+    if (cb) cb();
+  };
   if (window.MV_SONG_DATA && window.MV_SONG_DATA[meta.id]) return done();
   (songWaiters[id] || (songWaiters[id] = [])).push(done);
   if (songLoading.has(id)) return;
@@ -922,12 +926,13 @@ if (RENDER) {
 // the curtain call, so seeking anywhere just works.
 function player() {
   const $ = s => document.querySelector(s);
+  const archiveTitle = document.title;
   const audio = new Audio();
   window.MV_VOLUME(audio);
   audio.preload = 'auto';
   audio.playsInline = true;
   let T = 0, playing = false, anchor = 0, last = performance.now(), idx = 0, lastUi = '';
-  let unlockP = null, unlocking = false;
+  let unlockP = null, unlocking = false, request = 0;
   const LEN = () => HEAD + DUR + TAIL;
   const fmt = v => Math.floor(v / 60) + ':' + p2(Math.floor(v % 60));
   const audible = () => { const st = T - HEAD; return playing && st >= 0 && st < DUR - .05; };
@@ -973,25 +978,48 @@ function player() {
   function pick(i, auto) {
     idx = ((i % CAT.length) + CAT.length) % CAT.length;
     const meta = CAT[idx];
+    const sequence = ++request;
     if (!auto) { playing = false; unlocking = false; audio.pause(); }
     load(meta.id, () => {
       if (!(meta.audio && String(audio.src || '').endsWith(meta.audio))) audio.src = SONG.audio;
       T = 0; anchor = performance.now();
       try { localStorage.setItem('pv.song', SONG.id); } catch (e) { }
-      const u = new URL(location.href); u.searchParams.set('song', SONG.id); history.replaceState(null, '', u);
-      document.querySelectorAll('.card').forEach((c, k) => c.classList.toggle('cur', k === idx));
+      try {
+        const u = new URL(location.href);
+        u.searchParams.set('song', SONG.id);
+        history.replaceState(null, '', u);
+      } catch (e) { }
+      if (listOpen()) document.title = archiveTitle;
+      markSong(SONG.id);
       if ($('#ttl')) { $('#ttl').textContent = SONG.title; $('#cast').textContent = SONG.cast; }
       if (auto) play(); else { playing = false; audio.pause(); ui(); }
-    });
+    }, () => sequence === request);
   }
   function ui() {
     const b = $('#play');
     if (b) { b.textContent = playing ? '❚❚' : '▶'; b.setAttribute('aria-label', playing ? '暫停' : '播放'); }
     document.documentElement.classList.toggle('playing', playing);
   }
-  const listOpen = () => $('#start') && !$('#start').classList.contains('gone');
-  const showList = () => $('#start') && $('#start').classList.remove('gone');
-  const hideList = () => $('#start') && $('#start').classList.add('gone');
+  const start = $('#start');
+  const bar = $('#bar');
+  const listOpen = () => !start.classList.contains('gone');
+  function showList() {
+    document.title = archiveTitle;
+    start.classList.remove('gone');
+    start.inert = false;
+    bar.inert = true;
+    start.focus({ preventScroll: true });
+    wake();
+  }
+  function hideList() {
+    if (!listOpen()) return;
+    if (SONG) document.title = SONG.title + ' 第一版本 二次元 PV';
+    start.classList.add('gone');
+    start.inert = true;
+    bar.inert = false;
+    $('#play').focus({ preventScroll: true });
+    wake();
+  }
   const coarse = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
   // a tap that starts a song has to call play() itself; loading the score is async
   function gesturePick(i) {
@@ -1002,19 +1030,11 @@ function player() {
     pick(n, true);
   }
 
-  // the song cards
-  const grid = $('#grid');
-  if ($('#songCount')) $('#songCount').textContent = CAT.length;
-  if (grid) CAT.forEach((s, i) => {
-    const d = document.createElement('button');
-    d.className = 'card';
-    d.innerHTML = '<span class="n"></span><span class="t"></span><span class="c"></span>';
-    d.querySelector('.n').textContent = 'PV ' + p2(s.pv || i + 1) + ' ' + ({zh:'中文',en:'英文',ja:'日文',yue:'粵文'}[s.lang] || '中文');
-    d.querySelector('.t').textContent = window.MV_STORY.__text(s.title);
-    d.querySelector('.c').textContent = window.MV_STORY.__text(s.cast) + '　' + fmt(s.dur);
-    d.onclick = () => { hideList(); gesturePick(i); };
-    grid.appendChild(d);
-  });
+  bar.inert = true;
+  const markSong = window.MV_ARCHIVE.mount(CAT, i => {
+    hideList();
+    gesturePick(i);
+  }, fmt, window.MV_STORY.__text);
   const on = (id, f) => { const e = $(id); if (e) e.onclick = f; };
   on('#play', () => { hideList(); toggle(); });
   on('#bPrev', () => gesturePick(idx - 1));
@@ -1040,9 +1060,12 @@ function player() {
     scrub.addEventListener('pointermove', e => { if (e.buttons) to(e.clientX); });
   }
   addEventListener('keydown', e => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || $('#characterDialog').open) return;
     const k = e.code === 'Space' ? ' ' : (e.key || '').toLowerCase();
-    if (k === ' ') { e.preventDefault(); hideList(); toggle(); }
+    if (k === ' ') {
+      if (e.target.closest?.('button, a, input, select, textarea')) return;
+      e.preventDefault(); hideList(); toggle();
+    }
     else if (k === 'arrowleft') seek(T - 5);
     else if (k === 'arrowright') seek(T + 5);
     else if (k === 'n') gesturePick(idx + 1);
@@ -1066,7 +1089,6 @@ function player() {
   }
   addEventListener('pointermove', wake);
   addEventListener('pointerdown', wake);
-  const bar = $('#bar');
   if (bar) {
     bar.addEventListener('pointerdown', () => { hold++; });
     bar.addEventListener('pointerup', () => { hold = Math.max(0, hold - 1); wake(); });
@@ -1094,7 +1116,6 @@ function player() {
     cvs.style.left = ox + 'px'; cvs.style.top = oy + 'px';
     cvs.style.width = vw + 'px'; cvs.style.height = vh + 'px';
     cvs.style.right = 'auto'; cvs.style.bottom = 'auto';
-    const start = $('#start');
     if (start) {
       start.style.left = ox + 'px'; start.style.top = oy + 'px';
       start.style.width = vw + 'px'; start.style.height = vh + 'px';
@@ -1121,6 +1142,7 @@ function player() {
     requestAnimationFrame(tick);
     const dt = clamp((now - last) / 1000, .001, .1); last = now;
     if (!SONG || !window.__pv.ready()) {
+      if (listOpen()) return;
       ctx.fillStyle = '#120c22'; ctx.fillRect(0, 0, W, H);
       font(44, 700); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('載入中…', W / 2, H / 2);
@@ -1133,7 +1155,7 @@ function player() {
       syncAudio();
       if (T >= LEN()) { pick(idx + 1, true); return; }
     }
-    frame(T, dt);
+    if (!listOpen()) frame(T, dt);
     const tt = fmt(T) + ' / ' + fmt(LEN());
     if (tt !== lastUi) { lastUi = tt; if ($('#time')) $('#time').textContent = tt; }
     if ($('#played')) $('#played').style.width = (T / LEN() * 100).toFixed(2) + '%';

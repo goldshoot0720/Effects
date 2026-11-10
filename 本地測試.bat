@@ -34,7 +34,7 @@ echo.
 echo   啟動本機伺服器： http://localhost:8788
 echo   結束請按 Ctrl+C
 echo.
-start "" "http://localhost:8788/index.html"
+start "" "http://localhost:8788/index.html?view=archive"
 python serve.py 8788
 
 :end

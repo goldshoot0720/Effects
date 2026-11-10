@@ -6,17 +6,20 @@ Feng and Tu share the two middle positions, with cats and girls arranged outward
 
 ## Saved assets
 
+- `whale.png`: transparent front-facing T-pose recreated from the front of the
+  supplied three-view sheet. The reference's blue gradient curls, fin ears,
+  navy dress with a whale-emblem apron, and curved whale tail guide the new rig.
 - `claude.png`: transparent T-pose, generated from the user's orange-haired reference.
 - `gpt.png`: transparent original-pose cutout from the user's white dragon-girl reference.
   The floating Sora2 cloud and its motion trails are removed; GPT knot emblems remain.
   The connected dress, sleeves and tail use whole-figure motion rather than separate
   limb deformation, preventing the long fabric from splitting while animated.
 
-Both assets were made with the built-in imagegen tool, then copied into this directory.
-Generated alpha is preserved by `tools/build_cast.py`. The original eight rigs remain
-unchanged when adding a single asset:
+These PNG assets were made with the built-in image generator and copied into this directory.
+Generated alpha is preserved by `tools/build_cast.py`. Building a single asset updates only that character’s rig:
 
 ```powershell
+python tools/build_cast.py whale
 python tools/build_cast.py claude
 python tools/build_cast.py gpt
 ```

@@ -5,7 +5,11 @@ python -m http.server cannot answer Range requests, which makes seeking in the
 behaves like a real host.  Usage:  python serve.py [port]
 """
 import os, re, sys, functools
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+
+
+class LocalServer(ThreadingHTTPServer):
+    request_queue_size = 32
 
 
 class RangeHandler(SimpleHTTPRequestHandler):
@@ -73,6 +77,6 @@ if __name__ == "__main__":
     handler = functools.partial(RangeHandler, directory=root)
     print("serving %s on http://localhost:%d" % (root, port))
     try:
-        HTTPServer(("127.0.0.1", port), handler).serve_forever()
+        LocalServer(("127.0.0.1", port), handler).serve_forever()
     except KeyboardInterrupt:
         print("bye")

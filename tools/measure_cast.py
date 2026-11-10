@@ -206,14 +206,15 @@ HINTS = {
                  face=190, waist=0.66, neck=265, cut=364),
     "tu":   dict(armspan=170, armhalf=40, ankup=60, pelvis=790, hem=805,
                  face=185, waist=0.66, neck=275, cut=383),
-    "whale": dict(armspan=150, armhalf=45, ankup=80, pelvis=960, hem=1065,
-                  face=255, waist=0.5, neck=332, cut=305,
-                  tail=dict(root=(800, 1080), tip=(1040, 930), minx=780, miny=1250, top=900)),
+    "whale": dict(armspan=150, armhalf=48, ankup=128, pelvis=875, hem=1008,
+                  face=315, waist=0.48, neck=401, cut=408,
+                  tail=dict(root=(750, 975), tip=(974, 766), minx=855, miny=1012, top=755)),
 }
 
 if __name__ == "__main__":
     for name in sys.argv[1:]:
-        path = f"{ROOT}/art/cast/{name}.jpg"
+        extension = "png" if name == "whale" else "jpg"
+        path = f"{ROOT}/art/cast/{name}.{extension}"
         d, m, rgb, info = analyse(name, path, HINTS[name])
         print("=" * 70)
         print(name, "top/bot/cx/cy/cut/tip =", info)

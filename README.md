@@ -1,7 +1,8 @@
 # 鋒兄宇宙 · PV
 
-首頁有兩個版本：**第一版本**是二次元風格的 PV，**第二版本**是原本的 90 年代 PC-98 像素 MV，
-兩邊的選歌頁上方都可以切換。
+網站預設開啟 [歌詞 PV](https://neweffects.vercel.app/pv.html)。
+**鋒兄宇宙音樂影像圖鑑**可從 `index.html?view=archive` 或離線版開啟。曲庫依九首歌曲整理，可篩選中文、英文、日文、粵語版本並播放二次元 PV。
+角色圖鑑收錄十位角色的全身立繪與三視圖，可拖曳、滑動或按方向鍵切換正面、側面和背面。首頁也可切換到 90 年代 PC-98 像素 MV 或手足舞蹈素材庫。
 每一首先有自己的故事觀（見 [STORY.md](STORY.md)）。
 
 曲庫共 **9 首歌曲 × 中文、英文、日文、粵文 = 36 個版本**，依
@@ -21,14 +22,14 @@
 人物視窗僅顯示角色名字，不加 `.pet`。其他歌曲仍使用原本的牙妹與魚妹。
 新角色素材與產圖規格見 [art/cast/README.md](art/cast/README.md)。
 
-* 線上版：<https://effects-nine.vercel.app>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
+* 線上版：<https://neweffects.vercel.app/pv.html>（歌詞 PV）· <https://effects-nine.vercel.app/?view=archive>（第一版本 · 二次元 PV）· <https://effects-nine.vercel.app/pixel.html>（第二版本 · 像素 MV）
 * 下載版：[Releases](https://github.com/goldshoot0720/Effects/releases)（既有 `.zip` 桌面版 / `.apk` 手機版 / `.mp4`；此次曲庫更新不會改寫既有附件）
 
 ---
 
 ## 第一版本 · 二次元風 PV（index.html）
 
-首頁 `index.html` 就是 PV 播放器（`js/pv.js`），每首歌一支 **二次元風格的 PV**：原生 1920×1080、
+圖鑑內建二次元 PV 播放器（`js/pv.js`），每首歌一支 **二次元風格的 PV**：原生 1920×1080、
 平滑漸層、柔邊立繪（同一套 T-pose 人偶，白色貼紙描邊＋陰影），可以輸出成 MP4 直接上傳 B 站／YouTube。
 
 | 段落 | 畫面 |
@@ -123,7 +124,7 @@ python tools/build_dance_ref.py     # 重建 data/dance_ref.json / .js
 ## 專案結構
 
 ```
-index.html            首頁第一版本：二次元風 PV 播放器（UI / 樣式）
+index.html            歌詞 PV 預設入口；?view=archive 開啟曲庫、圖鑑與二次元 PV 播放器
 pixel.html            首頁第二版本：像素 MV（UI / 樣式）
 dance.html            手足舞蹈素材庫：八位班底的姿勢關鍵格瀏覽頁
 DANCE.md              素材說明：影片→角色、姿勢→舞步對照與編舞方式
@@ -133,7 +134,7 @@ tools/build_dance_ref.py  掃描 art/dance/ 產生素材索引
 js/px.js              像素引擎：緩衝區、網點、賽璐璐人物、對話視窗、播放器
 js/puppet.js          T-pose 人偶：WebGL2 蒙皮、骨架、舞步（MOVES / ROUTINE）
 js/story.js           九首歌的世界觀、色盤、角色表與分鏡，各語言沿用原曲並依全曲長度調整分鏡
-art/cast/<id>.jpg     八位班底的 T-pose 設定圖
+art/cast/            班底與客串角色的 T-pose 設定圖
 data/cast.js          由設定圖切好的身體／手臂圖層與關節位置（data: URI）
 STORY.md              故事設定（動畫照這份生成）
 data/songs.js         歌曲目錄
@@ -141,7 +142,7 @@ data/song_sources.json 9 首歌的 36 版來源、語言與固定 PV 編號
 data/song/<id>.js     每首歌的歌詞 + 烘焙好的頻譜/節拍資料
 audio/<id>.mp3        音檔
 tools/build_songs.py  從 mp3 + lrc 產生上面那些資料
-tools/build_cast.py   從 art/cast/*.jpg 產生 data/cast.js（需要 numpy、scipy、pillow）
+tools/build_cast.py   從 art/cast/ 的設定圖產生 data/cast.js（需要 numpy、scipy、pillow）
 js/pv.js              二次元風 PV：畫面、播放器、給渲染器的 window.__pv
 tools/render_pv.js    把每首歌輸出成 PV 影片（需要 playwright、ffmpeg）
 serve.py              支援 Range 的小型靜態伺服器
