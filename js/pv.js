@@ -403,7 +403,7 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   if (opt.translation && opt.limit != null) {
     const blockBottom = () => cy + ((rs.length - 1) * px * (latin ? 1.6 : 1.18)) / 2 + px / 2;
     while (px > 78) {
-      const zh = Math.min(64, Math.max(52, Math.round(px * .42)));
+      const zh = Math.round(px * .88);
       if (blockBottom() + 10 + zh * 1.15 <= opt.limit) break;
       px -= 4;
       rs = layout(px);
@@ -445,7 +445,7 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   }
   const bottom = y0 + (rs.length - 1) * lh + px / 2;
   if (opt.translation) {
-    const zh = Math.min(64, Math.max(52, Math.round(px * .42)));
+    const zh = Math.round(px * .88);
     const step = (opt.step || .05) * Math.min(1, [...str].length / Math.max(1, [...opt.translation].length));
     candy(opt.translation, cx, bottom + 8 + zh * .55, zh, maxW, appear, t, seed,
           { hop: opt.hop, maxRows: 1, step });
@@ -472,21 +472,20 @@ function subtitle(str, p, y, translation, insetLeft) {
   const floorY = Math.min(y || H * .9, subtitleCeiling);
   const maxW = insetLeft ? W - insetLeft - 64 : W * .8;
   const cx = insetLeft ? insetLeft + (W - insetLeft) / 2 : W / 2;
-  let pSize = 50, tSize = translation ? 40 : 0;
+  let pSize = 50, tSize = translation ? Math.round(pSize * .88) : 0;
   const measure = () => {
     const primary = rows(str, pSize, maxW);
     const translated = translation ? rows(translation, tSize, maxW) : [];
-    const gap = translated.length ? Math.max(14, pSize * .28) : 0;
+    const gap = translated.length ? Math.max(10, pSize * .18) : 0;
     const pStep = pSize * 1.22, tStep = Math.max(tSize * 1.2, 1);
     const stack = (primary.length - 1) * pStep + pSize * .62
       + gap + (translated.length ? tSize * .62 + (translated.length - 1) * tStep : 0);
     return { primary, translated, gap, pStep, tStep, stack };
   };
   let box = measure();
-  while (box.stack > 210 && (pSize > 32 || tSize > 32)) {
-    if (pSize > tSize && pSize > 32) pSize -= 2;
-    else if (tSize > 32) tSize -= 2;
-    else pSize -= 2;
+  while (box.stack > 210 && pSize > 28) {
+    pSize -= 2;
+    tSize = translation ? Math.round(pSize * .88) : 0;
     box = measure();
   }
   const primaryFirst = floorY - box.stack + pSize * .5;
@@ -544,15 +543,19 @@ function speech(line, p, tail, t, k) {
   const str = line.text;
   const maxW = 760;
   let px = str.length > 18 ? 52 : 64;
-  const small = line.translation ? 42 : 0;
-  const rs = rows(str, px, maxW);
-  font(px);
-  const tw = Math.max(...rs.map(r => ctx.measureText(r).width));
-  let zhSize = small;
+  let rs = rows(str, px, maxW);
+  let zhSize = line.translation ? Math.round(px * .88) : 0;
   if (line.translation) {
     font(zhSize);
-    while (zhSize > 32 && ctx.measureText(line.translation).width > maxW) { zhSize -= 2; font(zhSize); }
+    while (zhSize > 18 && ctx.measureText(line.translation).width > maxW) {
+      px -= 2;
+      zhSize = Math.round(px * .88);
+      font(zhSize);
+    }
+    rs = rows(str, px, maxW);
   }
+  font(px);
+  const tw = Math.max(...rs.map(r => ctx.measureText(r).width));
   const lineGap = line.translation ? 12 : 0;
   const content = rs.length * px * 1.25 + (line.translation ? lineGap + zhSize : 0);
   const bw = Math.max(360, tw + 140), bh = content + 52;

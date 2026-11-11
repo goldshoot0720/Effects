@@ -617,16 +617,15 @@ function paint() {
     let primary = sub, translated = null;
     if (g.translation) {
       const band = Math.max(8, bandY - subTop - 6);
-      let pSize = sub.size, zSize = Math.max(6, Math.floor(sub.size * .62));
+      let pSize = sub.size, zSize = Math.max(6, Math.round(pSize * .88));
       const pack = () => {
         primary = subtitle(g.lyric, width, pSize);
         translated = subtitle(g.translation, width, zSize);
         return primary.rows.length * (primary.size + 2) + translated.rows.length * (translated.size + 2) + 4;
       };
-      while (pack() > band && (pSize > 8 || zSize > 6)) {
-        if (pSize > zSize + 1 && pSize > 8) pSize--;
-        else if (zSize > 6) zSize--;
-        else pSize--;
+      while (pack() > band && pSize > 8) {
+        pSize--;
+        zSize = Math.max(6, Math.round(pSize * .88));
       }
       pack();
     }
