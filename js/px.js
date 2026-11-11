@@ -603,7 +603,15 @@ function paint() {
   const translationHeight = translated ? translated.rows.length * (translated.size + 2) + 2 : 0;
   const subTop = bandY - (sub ? sub.rows.length * lineHeight + translationHeight + 9 : 4);
   const area = { x: INSET.l + 8, y: top, w: width, h: Math.max(32, subTop - top) };
-  window.MV_PIXEL_SCENES.draw(g, brushes, area, SHEET ? window.MV_STORY.__cast() : null);
+  castCtx.save();
+  castCtx.beginPath();
+  castCtx.rect(0, 0, castBuf.width, subTop * castScale);
+  castCtx.clip();
+  try {
+    window.MV_PIXEL_SCENES.draw(g, brushes, area, SHEET ? window.MV_STORY.__cast() : null);
+  } finally {
+    castCtx.restore();
+  }
   if (sub) {
     fill(0, subTop, BW, bandY - subTop, '#121120');
     fill(0, subTop, BW, 1, '#b1877b');

@@ -21,6 +21,7 @@
 
 const W = 1920, H = 1080, TAU = Math.PI * 2;
 const HEAD = 3.4, TAIL = 8.5, CASTT = 3.8;
+const BILINGUAL_STAGE_TOP = H * .38;
 const cvs = document.getElementById('pv');
 const qs = new URLSearchParams(location.search);
 const songAlias = id => ({ 's102-en':'s103', 's102-ja':'s104',
@@ -450,16 +451,33 @@ function outlinedRows(lines, size, firstY, spacing, alpha) {
   });
   ctx.restore();
 }
-// Keep both lines above the controls in the interactive player.
-function subtitle(line, p, y) {
-  const primary = rows(line.text, 50, W * .8);
-  const translation = line.translation ? rows(line.translation, 32, W * .8) : [];
+// Keep the lower-third subtitle above the interactive playback controls.
+function subtitle(str, p, y) {
+  const primary = rows(str, 50, W * .8);
   const alpha = clamp(p * 4, 0, 1);
   const bottom = Math.min(y || H * .9, subtitleCeiling);
-  const translationTop = bottom - Math.max(0, translation.length - 1) * 40;
-  const primaryBottom = translation.length ? translationTop - 49 : bottom;
-  outlinedRows(primary, 50, primaryBottom - (primary.length - 1) * 62, 62, alpha);
-  if (translation.length) outlinedRows(translation, 32, translationTop, 40, alpha);
+  outlinedRows(primary, 50, bottom - (primary.length - 1) * 62, 62, alpha);
+}
+
+function bilingualSubtitle(line, t, chorus) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, H * .105, W, BILINGUAL_STAGE_TOP - H * .105);
+  ctx.clip();
+  if (chorus) {
+    candy(line.text, W / 2, H * .216, 92, W * .86, line.t - .05, t, line.idx * 3,
+          { hop: true, maxRows: 2, translation: line.translation });
+  } else {
+    const primary = rows(line.text, 58, W * .86);
+    const translated = line.translation ? rows(line.translation, 35, W * .86) : [];
+    const primaryHeight = primary.length * 68;
+    const blockHeight = primaryHeight + translated.length * 43;
+    const top = (H * .49 - blockHeight) / 2;
+    const alpha = clamp((t - line.t) * 6, 0, 1);
+    outlinedRows(primary, 58, top + 34, 68, alpha);
+    outlinedRows(translated, 35, top + primaryHeight + 22, 43, alpha);
+  }
+  ctx.restore();
 }
 // 殘光: a film strip with one character to a frame
 function filmStrip(x, chars, firstK, total, line, t, dir) {
@@ -483,8 +501,7 @@ function filmStrip(x, chars, firstK, total, line, t, dir) {
     ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2; ctx.strokeRect(fx, fy, fw, fh);
     const ch = chars[k];
     const gi = firstK + k;
-    const at = line.t + (gi / Math.max(1, total)) * Math.max(.6, line.d * .8);
-    const p = ch ? clamp((t - at) / .3, 0, 1) : 0;
+    const p = ch ? clamp((t - line.t - (gi / total) * Math.max(.6, line.d * .8)) / .3, 0, 1) : 0;
     if (p > 0) {
       font(Math.min(fh * .66, 132), 900); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.save(); ctx.translate(x, cy); ctx.scale(lerp(1.35, 1, easeOut(p)), lerp(1.35, 1, easeOut(p)));
@@ -504,32 +521,21 @@ function filmStrip(x, chars, firstK, total, line, t, dir) {
   ctx.restore();
 }
 // 達拉崩吧: a comic speech bubble pointing at whoever sings
-function speech(line, p, tail, t, k) {
+function speech(str, p, tail, t, k) {
   if (p <= 0) return;
-  const str = line.text;
   const maxW = 680;
-  let px = str.length > 18 ? 58 : 70;
-  if (line.translation && !/\s/.test(str)) {
-    font(px);
-    const width = ctx.measureText(str).width;
-    if (width > maxW) px = Math.max(52, Math.floor(px * maxW / width));
-  }
+  const px = str.length > 18 ? 58 : 70;
   const rs = rows(str, px, maxW);
-  const small = 35;
-  const translated = line.translation ? rows(line.translation, small, maxW) : [];
-  font(small);
-  const translatedW = Math.max(0, ...translated.map(r => ctx.measureText(r).width));
   font(px);
-  const tw = Math.max(translatedW, ...rs.map(r => ctx.measureText(r).width));
-  const translatedH = translated.length ? translated.length * 43 + 12 : 0;
-  const bw = Math.max(330, tw + 130), bh = rs.length * px * 1.25 + 100 + translatedH;
+  const tw = Math.max(...rs.map(r => ctx.measureText(r).width));
+  const bw = Math.max(330, tw + 130), bh = rs.length * px * 1.25 + 100;
   const bx = W * .72 - bw / 2 + (k % 2 ? 40 : -20), by = H * .3 - bh / 2 + (k % 2 ? 60 : 0);
   const cx = bx + bw / 2, cy = by + bh / 2;
   const sc = easeElastic(clamp(p * 1.6, 0, 1)) * (1 + Math.sin(t * 6) * .006);
   ctx.save();
   ctx.translate(tail[0], tail[1]); ctx.scale(sc, sc); ctx.translate(-tail[0], -tail[1]);
   ctx.lineJoin = 'round';
-  const oval = !translated.length && rs.length === 1 && [...str].length <= 9;
+  const oval = rs.length === 1 && [...str].length <= 9;
   const body = () => { ctx.beginPath(); if (oval) ctx.ellipse(cx, cy, bw / 2, bh / 2, 0, 0, TAU); else ctx.roundRect(bx, by, bw, bh, 60); };
   // the tail, a curved wedge from inside the bubble out to the face
   const a = Math.atan2(tail[1] - cy, tail[0] - cx), sx = cx + Math.cos(a) * bw * .3, sy = cy + Math.sin(a) * bh * .3;
@@ -553,15 +559,8 @@ function speech(line, p, tail, t, k) {
     const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length;
     font(px); const fullW = ctx.measureText(r).width;
     ctx.textAlign = 'left';
-    ctx.fillText(s, cx - fullW / 2, cy - translatedH / 2 + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
+    ctx.fillText(s, cx - fullW / 2, cy + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
   });
-  if (translated.length) {
-    font(small, 700);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#53445e';
-    const first = cy + (rs.length * px * 1.25 - translatedH) / 2 + 28;
-    translated.forEach((r, i) => ctx.fillText(r, cx, first + i * 43));
-  }
   ctx.restore();
   // anime emphasis marks next to the bubble
   ctx.save(); ctx.strokeStyle = PAL.acc; ctx.lineWidth = 9; ctx.lineCap = 'round';
@@ -726,53 +725,80 @@ function stinger(seg, t) {
 
 /* ---------------------------- the scenes ---------------------------- */
 function whoOf(seg, k) { return LEAD[(seg.who + (k || 0)) % LEAD.length]; }
+function characterStage(top, draw) {
+  if (!top) { draw(); return; }
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, top, W, H - top);
+  ctx.clip();
+  try { draw(); } finally { ctx.restore(); }
+}
 function songFrame(t, T) {
   const seg = segAt(t);
   const { line, gap } = window.MV_STORY.__lyricCue(LINES, t, DUR, SONG.lang);
+  const bilingual = SONG.lang === 'en' || SONG.lang === 'ja';
+  const stageTop = bilingual ? BILINGUAL_STAGE_TOP : 0;
   const bt = beatN(t), age = t - seg.t0;
   if (seg.mode === 'night') {
     bgNight(t);
     const who = whoOf(seg);
-    const base = { y: H * .97, h: H * .8, t, beat: bt };
+    const base = { y: H * .97, h: H * (bilingual ? .51 : .8), t, beat: bt };
     const twin = LEAD.length > 1 ? LEAD[(seg.who + 1) % LEAD.length] : who;
-    galaxyTwin(twin, { ...base, x: W * .36, h: H * .88, flip: true, move: DANCE, i: 1 }, t);
-    fig(ctx, who, { ...base, x: W * .62, move: age < 2 ? 'wave' : DANCE, i: 0 });
-    if (line) { scatter(line, t); subtitle(line, (t - line.t) / .6); }
+    characterStage(stageTop, () => {
+      galaxyTwin(twin, { ...base, x: W * .36, h: H * (bilingual ? .54 : .88), flip: true, move: DANCE, i: 1 }, t);
+      fig(ctx, who, { ...base, x: W * .62, move: age < 2 ? 'wave' : DANCE, i: 0 });
+    });
+    if (line && !bilingual) { scatter(line, t); subtitle(line.text, (t - line.t) / .6); }
   } else if (seg.mode === 'verse' && seg.sub === 'film') {
     bgPaper(t, seg);
     const who = whoOf(seg);
     const mv = line ? MOVES[line.idx % MOVES.length] : 'bounce';
-    fig(ctx, who, { x: W / 2, y: H * 1.36, h: H * 1.32, t, beat: bt, move: mv, i: 1, rim: 9 });
-    if (line) {
-      const cs = [...line.text].filter(c => c.trim()), half = Math.ceil(cs.length / 2);
-      filmStrip(W * .1, cs.slice(0, half), 0, cs.length, line, t, 1);
-      filmStrip(W * .9, cs.slice(half), half, cs.length, line, t, -1);
-      subtitle(line, (t - line.t) / .6);
-    } else { filmStrip(W * .1, [], 0, 1, { t: 1e9, d: 1 }, t, 1); filmStrip(W * .9, [], 0, 1, { t: 1e9, d: 1 }, t, -1); }
+    characterStage(stageTop, () => {
+      fig(ctx, who, { x: W / 2, y: H * (bilingual ? 1.28 : 1.36), h: H * (bilingual ? .80 : 1.32),
+                      t, beat: bt, move: mv, i: 1, rim: 9 });
+      const cs = line && !bilingual ? [...line.text].filter(c => c.trim()) : [];
+      const half = Math.ceil(cs.length / 2), total = Math.max(1, cs.length);
+      filmStrip(W * .1, cs.slice(0, half), 0, total, line, t, 1);
+      filmStrip(W * .9, cs.slice(half), half, total, line, t, -1);
+    });
+    if (line && !bilingual) subtitle(line.text, (t - line.t) / .6);
   } else if (seg.mode === 'verse') {
     bgPaper(t, seg);
     const who = whoOf(seg, line ? line.idx % Math.min(2, LEAD.length) : 0);
     const mv = line ? MOVES[(line.idx + 3) % MOVES.length] : 'bounce';
-    fig(ctx, who, { x: W * .28, y: H * 1.3, h: H * 1.28, t, beat: bt, move: mv, i: 1, rim: 9 });
+    characterStage(stageTop, () => {
+      fig(ctx, who, { x: W * (bilingual ? .5 : .28), y: H * (bilingual ? 1.26 : 1.3),
+                      h: H * (bilingual ? .80 : 1.28), t, beat: bt, move: mv, i: 1, rim: 9 });
+    });
     const J = MV_PUPPET.joints(who.id), face = J && J.face ? J.face : [W * .28, H * .3];
-    if (line) speech(line, (t - line.t) / .55, [face[0] + 150, face[1] + 40], t, line.idx);
+    if (line && !bilingual) speech(line.text, (t - line.t) / .55, [face[0] + 150, face[1] + 40], t, line.idx);
   } else if (seg.mode === 'chorus') {
     if (seg.sub === 'stage') bgStage(t); else bgBurst(t);
     const n = CHORUS.length;
     const zoom = 1 + F.beat * .012 * (F.level + .4);
-    ctx.save(); ctx.translate(W / 2, H); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H);
-    lineup(CHORUS, t, { y: H * 1.0, h: H * (n > 2 ? .6 : .68), move: DANCE, stagger: true });
-    ctx.restore();
-    if (line) candy(line.text, W / 2, H * .25, 150, W * .86, line.t - .05, t, line.idx * 3,
-                    { hop: true, maxRows: 2, translation: line.translation });
+    characterStage(stageTop, () => {
+      ctx.save(); ctx.translate(W / 2, H); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -H);
+      lineup(CHORUS, t, { y: H, h: H * (bilingual ? .52 : n > 2 ? .6 : .68), move: DANCE, stagger: true });
+      ctx.restore();
+    });
+    if (line && !bilingual)
+      candy(line.text, W / 2, H * .25, 150, W * .86, line.t - .05, t, line.idx * 3, { hop: true, maxRows: 2 });
   } else if (seg.mode === 'desk') {
     bgDesk(t);
     // each interlude opens the windows in a different order
     const k = seg.who % Math.max(1, LEAD.length);
-    petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
+    characterStage(stageTop, () => {
+      if (bilingual) {
+        const scale = 1 - stageTop / H;
+        ctx.translate(W * (1 - scale) / 2, stageTop);
+        ctx.scale(scale, scale);
+      }
+      petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
+    });
     taskbar(t, 'PETS');
-    if (line) subtitle(line, (t - line.t) / .6, H * .86);
+    if (line && !bilingual) subtitle(line.text, (t - line.t) / .6, H * .86);
   }
+  if (line && bilingual) bilingualSubtitle(line, t, seg.mode === 'chorus');
   if (gap) {
     ctx.save();
     font(34, 800);
