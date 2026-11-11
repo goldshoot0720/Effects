@@ -34,6 +34,8 @@ NB = 12                # number of log-spaced bands
 
 with open(os.path.join(ROOT, 'data', 'song_sources.json'), encoding='utf-8') as f:
     SOURCES = json.load(f)
+with open(os.path.join(ROOT, 'data', 'lyric_translations.json'), encoding='utf-8') as f:
+    LYRIC_TRANSLATIONS = json.load(f)
 SONGS = [(s['id'], s['sourceStem'], s['title'], s['cast'], s['theme'], s['tagline'])
          for s in SOURCES]
 # a song's .lrc may sit next to the mp3 under a slightly different name
@@ -240,6 +242,20 @@ def structure_lines(lines, duration):
     return lines, sections
 
 
+def add_lyric_translations(lines, meta):
+    """Fill bilingual cues from a reviewed translation or matching Chinese lyric."""
+    translations = LYRIC_TRANSLATIONS.get(meta['id'])
+    if translations is None:
+        return
+    if len(translations) != len(lines):
+        raise ValueError('Chinese translation count does not match ' + meta['id'])
+    chinese_srt = os.path.join(LYRICS, meta['baseId'] + '.srt')
+    chinese, _ = parse_srt(chinese_srt, float('inf'), 'zh')
+    for line, entry in zip(lines, translations):
+        translation = chinese[entry]['text'] if isinstance(entry, int) else entry
+        line.setdefault('translation', translation)
+
+
 def write_catalogue(catalogue, only):
     """Write every entry, or merge a one-song rebuild into the catalogue."""
     catalogue_path = os.path.join(ROOT, 'data', 'songs.js')
@@ -295,6 +311,7 @@ def build(only=None):
             lines, sections = parse_lrc(lrc, an['duration'])
         else:
             print('  !! missing lrc:', lrc)
+        add_lyric_translations(lines, meta)
         data = {
             'id': sid, 'title': title, 'cast': cast, 'theme': theme,
             'tagline': tagline, 'audio': 'audio/%s.mp3' % sid,

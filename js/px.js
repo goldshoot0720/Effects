@@ -10,7 +10,7 @@
 
 /* ------------------------------ utils ------------------------------ */
 const CAT = window.MV_SONGS || [];
-const VERSION = '2.7.1';
+const VERSION = '2.7.2';
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 // darken / lighten a hex colour, for the second tone of an iris or a strand
 function shade(hex, k) {
@@ -38,8 +38,11 @@ function b64u8(s) {
 /* ============================== buffer ============================= */
 const cvs = $('#screen'), ctx = cvs.getContext('2d', { alpha: false });
 const buf = document.createElement('canvas');
-const b = window.MV_STORY.__cleanCanvas(buf.getContext('2d', { alpha: false }));
+const b = buf.getContext('2d', { alpha: false });
+const castBuf = document.createElement('canvas');
+const castCtx = window.MV_STORY.__cleanCanvas(castBuf.getContext('2d'));
 let W = 0, H = 0, BW = 0, BH = 0, SC = 1, port = false;
+let castStep = 1, castScale = 1;
 let QUAL = clamp(Math.round(parseFloat(store.get('px.qual')) || 1), 0, 2);
 const QNAME = ['粗', '中', '細'];
 const BASE = [160, 224, 292];
@@ -113,6 +116,15 @@ function resize() {
     BW = bw; BH = bh; SC = sc; port = BW < BH * 1.15;
     buf.width = BW; buf.height = BH;
   }
+  // Keep at least twice the backdrop's resolution for faces and clothing.
+  castStep = Math.max(1, Math.min(Math.floor(SC / 2), Math.round(dpr * 2)));
+  castScale = SC / castStep;
+  const cw = Math.ceil(W / castStep), ch = Math.ceil(H / castStep);
+  if (castBuf.width !== cw || castBuf.height !== ch) {
+    castBuf.width = cw;
+    castBuf.height = ch;
+    castCtx.imageSmoothingEnabled = false;
+  }
   readInsets();
   coverDirty = true;
 }
@@ -150,27 +162,57 @@ function tri(x1, y1, x2, y2, x3, y3, col) {
   polygon([[x1, y1], [x2, y2], [x3, y3]], col);
 }
 const FAM = '"Microsoft JhengHei UI","PingFang TC","Noto Sans TC","Hiragino Sans",monospace';
-function setFont(px, w) { b.font = (w || 700) + ' ' + Math.max(5, Math.round(px)) + 'px ' + FAM; }
-function text(str, x, y, px, col, align, w) {
-  setFont(px, w); b.textAlign = align || 'left'; b.textBaseline = 'top';
-  b.fillStyle = col; b.fillText(str, Math.round(x), Math.round(y));
+function setFont(px, w) {
+  castCtx.font = (w || 700) + ' ' + Math.round(Math.max(5, px) * castScale) + 'px ' + FAM;
 }
-function measure(str, px, w) { setFont(px, w); return b.measureText(str).width; }
+function text(str, x, y, px, col, align, w) {
+  setFont(px, w);
+  castCtx.textAlign = align || 'left';
+  castCtx.textBaseline = 'top';
+  castCtx.fillStyle = col;
+  castCtx.fillText(str, Math.round(x * castScale), Math.round(y * castScale));
+}
+function measure(str, px, w) { setFont(px, w); return castCtx.measureText(str).width / castScale; }
 function fitText(str, px, max, w) {
   while (px > 5 && measure(str, px, w) > max) px--;
   return px;
 }
+function castLabel(name, x, y, size, maxWidth) {
+  const width = Math.min(maxWidth, measure(name, size, 800) + 5) * castScale;
+  castCtx.fillStyle = '#211e30';
+  castCtx.fillRect(Math.round(x * castScale - width / 2), Math.round(y * castScale),
+                   Math.round(width), Math.round((size + 4) * castScale));
+  castCtx.fillStyle = '#fff6e4';
+  castCtx.textAlign = 'center';
+  castCtx.textBaseline = 'top';
+  castCtx.fillText(name, Math.round(x * castScale), Math.round((y + 1) * castScale),
+                   Math.max(1, width - 2 * castScale));
+}
 /* Hand-drawn pixel figures use the same choreography as the illustrated rigs. */
 const POSE_MOVE = { raise: 'raise', point: 'point2', walk: 'walk', lie: 'lie' };
-let CEL = store.get('px.characterArt') !== 'portrait';
+let CEL = store.get('px.characterArt') === 'pixel';
 function figure(o) {
   const move = o.dance || POSE_MOVE[o.pose] || 'idle';
   const beat = g.beatN + (o.beatOff || 0);
   const i = o.pose === 'lie' ? Number(!!o.awake) : o.di ?? Math.round((o.ph || 0) * 3);
+  const rig = window.MV_PUPPET;
   const u = o.h / 100, x = Math.round(o.x), base = Math.round(o.y);
   fill(x - 21 * u, base - 1, 42 * u, 3 * u, o.shadowBack || '#111420');
-  if (!CEL && o.id && window.MV_PUPPET.draw(b, { ...o, move, beat, i })) return;
-  const rig = window.MV_PUPPET;
+  if (!CEL && o.id && rig.ready(o.id)) {
+    const floor = Math.round(o.y * castScale);
+    if (o.crop) {
+      castCtx.save();
+      castCtx.beginPath();
+      castCtx.rect(0, 0, castBuf.width, floor);
+      castCtx.clip();
+    }
+    rig.draw(castCtx, {
+      id: o.id, x: o.x * castScale, y: (o.y + (o.crop || 0)) * castScale, h: o.h * castScale,
+      t: o.t, flip: o.flip, move, beat, i, levels: 32, dither: false
+    });
+    if (o.crop) castCtx.restore();
+    return;
+  }
   let pose = rig.dancePose(move, beat, i, o.t);
   if (o.flip) pose = rig.mirror(pose);
   const cx = x + Math.round(pose.x * o.h), y = base + Math.round(pose.y * o.h);
@@ -519,16 +561,21 @@ function shotAt(t) {
 }
 
 /* ------------------------------ render ----------------------------- */
-const g = { t: 0, prog: 0, F, shot: null, shotIdx: 0, shotP: 0, lyric: '',
+const g = { t: 0, prog: 0, F, shot: null, shotIdx: 0, shotP: 0, lyric: '', translation: '', detail: true,
             port: false, BW: 0, BH: 0, beatN: 0 };
 let lastErr = null, SHEET = false;
-const brushes = { fill, polygon, text, measure, fitText, figure };
+const brushes = { fill, polygon, text, measure, fitText, figure, castLabel };
 
-function subtitle(line, maxWidth) {
-  const target = Math.max(10, Math.min(22, Math.round(BH * .085)));
-  const minSize = Math.max(9, Math.min(target, Math.round(target * .68)));
-  const units = /\s/.test(line) ? line.match(/\S+\s*/gu) : [...line];
-  if (measure(line, target, 900) <= maxWidth) return { rows: [line], size: target };
+function subtitle(line, maxWidth, target) {
+  const minSize = Math.max(Math.min(9, target), Math.round(target * .68));
+  const hasSpaces = /\s/.test(line);
+  const units = hasSpaces ? line.match(/\S+\s*/gu) : [...line];
+  const width = measure(line, target, 900);
+  if (width <= maxWidth) return { rows: [line], size: target };
+  if (!hasSpaces) {
+    const oneLine = Math.floor(target * maxWidth / width);
+    if (oneLine >= minSize - 1) return { rows: [line], size: fitText(line, oneLine, maxWidth, 900) };
+  }
   const rows = [];
   let row = '';
   for (const unit of units) {
@@ -543,14 +590,18 @@ function subtitle(line, maxWidth) {
 }
 
 function paint() {
+  castCtx.clearRect(0, 0, castBuf.width, castBuf.height);
   const width = Math.max(24, BW - INSET.l - INSET.r - 16);
   const top = INSET.t + 7;
   const reserve = Math.max(BH * .07, chromeCover() + 4);
   const bandY = Math.round(BH - reserve);
   // Reserve enough room for the current subtitle before composing the shot.
-  const sub = g.lyric && !SHEET ? subtitle(g.lyric, width) : null;
+  const size = Math.max(10, Math.min(22, Math.round(BH * .085)));
+  const sub = g.lyric && !SHEET ? subtitle(g.lyric, width, size) : null;
+  const translated = sub && g.translation ? subtitle(g.translation, width, Math.floor(sub.size * .66)) : null;
   const lineHeight = sub ? sub.size + 3 : 0;
-  const subTop = bandY - (sub ? sub.rows.length * lineHeight + 9 : 4);
+  const translationHeight = translated ? translated.rows.length * (translated.size + 2) + 2 : 0;
+  const subTop = bandY - (sub ? sub.rows.length * lineHeight + translationHeight + 9 : 4);
   const area = { x: INSET.l + 8, y: top, w: width, h: Math.max(32, subTop - top) };
   window.MV_PIXEL_SCENES.draw(g, brushes, area, SHEET ? window.MV_STORY.__cast() : null);
   if (sub) {
@@ -558,6 +609,9 @@ function paint() {
     fill(0, subTop, BW, 1, '#b1877b');
     for (const [i, row] of sub.rows.entries())
       text(row, area.x + width / 2, subTop + 5 + i * lineHeight, sub.size, '#fff4e2', 'center', 900);
+    if (translated) for (const [i, row] of translated.rows.entries())
+      text(row, area.x + width / 2, subTop + 6 + sub.rows.length * lineHeight + i * (translated.size + 2),
+           translated.size, '#ded4ce', 'center', 800);
   }
 }
 
@@ -570,6 +624,7 @@ function frameLoop() {
   const next = SHOTS[si + 1]?.t ?? DUR;
   g.t = t;
   g.prog = t / DUR;
+  g.detail = !CEL;
   g.port = port;
   g.BW = BW;
   g.BH = BH;
@@ -579,6 +634,7 @@ function frameLoop() {
   g.shotP = clamp((t - shot.t) / Math.max(.4, next - shot.t), 0, 1);
   const { line, gap } = window.MV_STORY.__lyricCue(LY, t, DUR, SONG.lang);
   g.lyric = line?.text || gap;
+  g.translation = line?.translation || '';
   try {
     paint();
     lastErr = null;
@@ -588,6 +644,7 @@ function frameLoop() {
   }
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(buf, 0, 0, BW * SC, BH * SC);
+  ctx.drawImage(castBuf, 0, 0, castBuf.width * castStep, castBuf.height * castStep);
   updateHud(t);
 }
 
@@ -727,7 +784,7 @@ $('#bQual').onclick = () => {
 $('#bCel').onclick = () => {
   CEL = !CEL;
   store.set('px.characterArt', CEL ? 'pixel' : 'portrait');
-  $('#celName').textContent = CEL ? '像素' : '立繪';
+  $('#celName').textContent = CEL ? '手繪' : '細緻';
   if (!CEL) window.MV_PUPPET.preload();
 };
 $('#bFull').onclick = () => {
@@ -799,7 +856,7 @@ window.__px = {
 buildCards();
 resize();
 $('#qName').textContent = QNAME[QUAL];
-$('#celName').textContent = CEL ? '像素' : '立繪';
+$('#celName').textContent = CEL ? '手繪' : '細緻';
 if (!CEL) window.MV_PUPPET.preload();
 const wanted = CAT.findIndex(s => s.id === store.get('px.song'));
 loadSong(wanted >= 0 ? wanted : 0, false);

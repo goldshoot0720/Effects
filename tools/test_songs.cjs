@@ -15,6 +15,7 @@ run('js/pixel-scenes.js');
 const {MV_SONGS: songs, MV_STORY: story, MV_PIXEL_SCENES: pixelScenes} = context.window;
 const sources = JSON.parse(read('data/song_sources.json'));
 const imported = JSON.parse(read('data/import-neweffects.json'));
+const translations = JSON.parse(read('data/lyric_translations.json'));
 assert.equal(songs.length, 36);
 assert.equal(new Set(songs.map(s => s.id)).size, 36);
 assert.equal(new Set(songs.map(s => s.baseId)).size, 9);
@@ -38,6 +39,15 @@ for (const meta of songs) {
   for (const [i, line] of data.lines.entries()) {
     assert(line.text && line.t >= 0 && line.d > 0 && line.t + line.d <= meta.dur + .1, meta.id + ' cue bounds');
     if (i) assert(line.t >= data.lines[i-1].t + data.lines[i-1].d - .002, meta.id + ' overlapping cues');
+    if (meta.lang === 'en' || meta.lang === 'ja') {
+      assert(/\p{Script=Han}/u.test(line.translation || ''), meta.id + ' missing Chinese at cue ' + i);
+      const entry = translations[meta.id]?.[i];
+      if (entry !== undefined) {
+        const expected = typeof entry === 'number'
+          ? context.window.MV_SONG_DATA[meta.baseId].lines[entry].text : entry;
+        assert.equal(line.translation, expected, meta.id + ' translation differs at cue ' + i);
+      }
+    } else assert(!line.translation, meta.id + ' should have one subtitle language');
   }
   story.__setLanguage(data);
   const pixel = pixelScenes.cues(data, meta);
@@ -64,6 +74,7 @@ assert.equal(lyricAt(57 - 3.4).gap, '間奏');
 assert.equal(lyricAt(59 - 3.4).gap, '間奏');
 assert.equal(lyricAt(111 - 3.4).gap, '演奏の余韻');
 assert.equal(lyricAt(66.28).line.text, 'りょうけのおやもあつまる');
+assert.equal(lyricAt(66.28).line.translation, '兩家的父母也齊聚一堂');
 assert.equal(lyricAt(66.28).gap, '');
 // A translated take must not change the original story's shot times.
 const before = JSON.stringify(story.s028.shots);

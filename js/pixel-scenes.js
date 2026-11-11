@@ -512,7 +512,7 @@ const art = {
     B.R(64, 52, 10, 3, red);
   },
   money(B, g) {
-    for (let i = 0; i < 5; i++) B.O(17 + i * 6, 40 - i * 4, 62, 19, i % 2 ? '#83bb8d' : '#51967c');
+    for (let i = 0; i < 5; i++) B.O(17 + i * 6, 40 - i * 4, 55, 19, i % 2 ? '#83bb8d' : '#51967c');
     B.R(45, 24, 10, 19, paper);
     for (let i = 0; i < 5; i++) coin(B, 20 + i * 13, 9 + (i * 5 + g.t * 7) % 13, 8);
   },
@@ -670,24 +670,22 @@ const wall = {
   broadcast: '#352a37', wedding: '#43253b', study: '#25283a', banquet: '#1f3434'
 };
 
-function castRow(g, F, cast, left, width, floor, height, move) {
+function castRow(g, F, cast, left, width, floor, height, move, labels, crop) {
   if (!cast.length) return;
   const gap = width / cast.length;
-  const h = Math.min(height, gap * (move === 'lie' ? .85 : 1.42));
-  const labelSize = Math.max(6, Math.min(11, gap * .18));
+  const h = Math.min(height / (crop ? .78 : 1), gap * (move === 'lie' ? .85 : 1.7));
+  const labelSize = Math.max(7, Math.min(12, gap * .2));
   for (const [i, id] of cast.entries()) {
     const who = window.MV_STORY.__who(id);
     const x = left + gap * (i + .5);
     const outfit = id === 'feng' && g.shot.world === 'arcade' && g.shot.prop === 'hall'
       ? { cloth: '#6b648c', cloth2: '#3d375c', pants: '#3e415b', collar: '#e1d7ee' } : {};
-    F.figure({ ...who, ...outfit, x, y: floor, h, t: g.t, ph: i * .7, di: i,
+    F.figure({ ...who, ...outfit, x, y: floor, h, crop: crop ? h * .22 : 0, t: g.t, ph: i * .7, di: i,
       sing: g.F.level, dance: move, pose: move === 'lie' ? 'lie' : undefined,
       awake: g.shot.prop === 'auction' || (g.shot.prop === 'fur' && g.beatN % 4 < 2),
       shadowBack: '#1b1928' });
     const size = F.fitText(who.name, labelSize, gap - 3, 800);
-    const labelWidth = Math.min(gap - 1, F.measure(who.name, size, 800) + 5);
-    F.fill(x - labelWidth / 2, floor + 4, labelWidth, size + 4, '#211e30');
-    F.text(who.name, x, floor + 5, size, page, 'center', 800);
+    labels.push([who.name, x, floor + 4, size, gap - 1]);
   }
 }
 
@@ -701,17 +699,18 @@ function draw(g, F, box, sheet) {
   F.fill(0, height - 11, w, 1, '#71617c');
 
   const cast = sheet ? sheet.map(who => who.id) : shot.cast;
-  const stacked = port || cast.length > 4;
+  const stacked = port;
   const twoRows = port && cast.length >= 4;
   const split = Math.ceil(cast.length / 2);
   const rows = !twoRows ? [cast] : !sheet && shot.world === 'banquet'
     ? [cast.filter(id => id !== 'feng' && id !== 'tu'), pair]
     : [cast.slice(0, split), cast.slice(split)];
-  const artWidth = W * (stacked || !cast.length ? .88 : .47);
+  const artShare = cast.length > 4 ? .28 : .35;
+  const artWidth = W * (stacked || !cast.length ? .88 : artShare);
   const artHeight = H * (!cast.length ? .88 : twoRows ? .31 : stacked ? .45 : .87);
   const caption = shot.caption;
   const artSize = Math.min(artWidth / 100, artHeight / (caption ? 82 : 65));
-  const artX = box.x + (stacked || !cast.length ? W * .5 : W * .245) - artSize * 50;
+  const artX = box.x + W * (stacked || !cast.length ? .5 : artShare / 2) - artSize * 50;
   const artY = box.y + (stacked && cast.length ? H * .035 : (H - artHeight) * .46);
   if (!sheet) {
     const B = brush(F, artX, artY, artSize);
@@ -731,13 +730,17 @@ function draw(g, F, box, sheet) {
   const floor = height - 20;
   const castTop = sheet ? box.y + H * .1 : artY + artSize * 65 + (caption ? H * .13 : 0);
   const rowGap = 20;
-  const rowHeight = twoRows ? (floor - castTop - rowGap) / 2.34 : H * (sheet ? .64 : stacked ? .43 : .62);
-  const left = box.x + (stacked || sheet ? 0 : W * .48);
-  const rowWidth = W * (stacked || sheet ? 1 : .52);
+  const rowHeight = twoRows ? (floor - castTop - rowGap) / 2.34 : H * (stacked ? .47 : .76);
+  const left = box.x + (stacked || sheet ? 0 : W * (artShare + .02));
+  const rowWidth = box.x + W - left;
+  const labels = [];
+  const move = sheet ? 'routine' : shot.move;
+  const crop = g.detail && twoRows && move !== 'lie';
   for (const [index, row] of rows.entries()) {
     const rowFloor = floor - (rows.length - 1 - index) * (rowHeight * 1.17 + rowGap);
-    castRow(g, F, row, left, rowWidth, rowFloor, rowHeight, sheet ? 'routine' : shot.move);
+    castRow(g, F, row, left, rowWidth, rowFloor, rowHeight, move, labels, crop);
   }
+  for (const args of labels) F.castLabel(...args);
 }
 
 return { cues, draw };

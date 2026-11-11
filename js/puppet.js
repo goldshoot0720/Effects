@@ -69,7 +69,7 @@ in vec2 vUV;
 uniform sampler2D uTex;
 uniform vec4 uTint;
 uniform vec4 uForearm;
-uniform float uLevels, uSmooth;
+uniform float uLevels, uSmooth, uDither;
 out vec4 o;
 const float BY[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
 void main() {
@@ -90,7 +90,7 @@ void main() {
   vec3 rgb = c.rgb / c.a;
   ivec2 q = ivec2(mod(gl_FragCoord.xy, 4.0));
   float th = (BY[q.y * 4 + q.x] + 0.5) / 16.0 - 0.5;
-  rgb = clamp(floor(rgb * uLevels + 0.5 + th * 0.9) / uLevels, 0.0, 1.0);
+  rgb = clamp(floor(rgb * uLevels + 0.5 + th * uDither) / uLevels, 0.0, 1.0);
   o = vec4(rgb, 1.0);
 }`;
 
@@ -115,7 +115,7 @@ function initGL() {
     gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     for (const n of ['aPos', 'aUV', 'aBone', 'aW']) loc[n] = gl.getAttribLocation(prog, n);
-    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uForearm', 'uLevels', 'uSmooth']) loc[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uBones', 'uOffset', 'uSize', 'uTex', 'uTint', 'uForearm', 'uLevels', 'uSmooth', 'uDither']) loc[n] = gl.getUniformLocation(prog, n);
     gl.disable(gl.BLEND);
     return true;
   } catch (e) {
@@ -537,7 +537,7 @@ const MOVES = {
      the knees are drawn up, and the tail never stops. `i` > 0 = awake. */
   lie(b, i, t) {
     const s = Math.sin(t * 2.2), awake = i > 0 ? 1 : 0, h = pulse(b) * awake;
-    return P({ grounded: false, lu: 262, lf: 330, ru: 96 + 3 * s, rf: 70 + 4 * s,
+    return P({ grounded: false, lu: 245, lf: 278, ru: 96 + 3 * s, rf: 70 + 4 * s,
                lt: 70, ls: 104, rt: 76, rs: 110, chest: -4 + 2 * s, pelvis: 0,
                head: -10 - 14 * awake - 6 * h, tail: 30 * s + 25 * awake * Math.sin(t * 6) });
   },
@@ -590,7 +590,7 @@ const hex = c => {
 };
 
 /* o: { id, x, y (feet), h, move, beat, i, t, flip, levels, outline, crop,
-        smooth, rim, tint }
+        dither, smooth, rim, tint }
    ctx: the 2D pixel buffer. Returns false when the puppet is not ready.
    smooth: soft alpha and true colour instead of the pixel look, blended;
    rim: outline thickness in px (smooth only); tint: paint the figure flat;
@@ -651,6 +651,7 @@ function draw(ctx, o) {
   gl.uniform2f(loc.uSize, W, H);
   const levels = o.levels || 6;
   gl.uniform1f(loc.uSmooth, o.smooth ? 1 : 0);
+  gl.uniform1f(loc.uDither, o.dither === false ? 0 : .9);
   if (o.smooth) {
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     pp.draw([0, 0], o.tint ? hex(o.tint) : [0, 0, 0, 0], levels, portrait);
