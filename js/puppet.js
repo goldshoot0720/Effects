@@ -362,6 +362,7 @@ class Puppet {
     J.face = W(head, g.face); J.neck = W(chest, g.neck); J.pelvis = W(pelvis, g.pelvis);
     J.lwr = W(lf, L.wr); J.rwr = W(rf, Rr.wr); J.ltip = W(lf, L.tip); J.rtip = W(rf, Rr.tip);
     J.lank = W(ls, L.ank); J.rank = W(rs, Rr.ank);
+    if (measure) { J.top = y0; J.right = x1; }
     return [x0, y0, x1, y1];
   }
 

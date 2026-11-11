@@ -598,10 +598,9 @@ function paint() {
   // Reserve enough room for the current subtitle before composing the shot.
   const size = Math.max(10, Math.min(22, Math.round(BH * .085)));
   const sub = g.lyric && !SHEET ? subtitle(g.lyric, width, size) : null;
-  const translated = sub && g.translation ? subtitle(g.translation, width, Math.floor(sub.size * .66)) : null;
+  // The picture keeps the one-line band. A translation shares that band.
   const lineHeight = sub ? sub.size + 3 : 0;
-  const translationHeight = translated ? translated.rows.length * (translated.size + 2) + 2 : 0;
-  const subTop = bandY - (sub ? sub.rows.length * lineHeight + translationHeight + 9 : 4);
+  const subTop = bandY - (sub ? sub.rows.length * lineHeight + 9 : 4);
   const area = { x: INSET.l + 8, y: top, w: width, h: Math.max(32, subTop - top) };
   castCtx.save();
   castCtx.beginPath();
@@ -615,11 +614,31 @@ function paint() {
   if (sub) {
     fill(0, subTop, BW, bandY - subTop, '#121120');
     fill(0, subTop, BW, 1, '#b1877b');
-    for (const [i, row] of sub.rows.entries())
-      text(row, area.x + width / 2, subTop + 5 + i * lineHeight, sub.size, '#fff4e2', 'center', 900);
-    if (translated) for (const [i, row] of translated.rows.entries())
-      text(row, area.x + width / 2, subTop + 6 + sub.rows.length * lineHeight + i * (translated.size + 2),
-           translated.size, '#ded4ce', 'center', 800);
+    let primary = sub, translated = null;
+    if (g.translation) {
+      const band = Math.max(8, bandY - subTop - 6);
+      let pSize = sub.size, zSize = Math.max(6, Math.floor(sub.size * .62));
+      const pack = () => {
+        primary = subtitle(g.lyric, width, pSize);
+        translated = subtitle(g.translation, width, zSize);
+        return primary.rows.length * (primary.size + 2) + translated.rows.length * (translated.size + 2) + 4;
+      };
+      while (pack() > band && (pSize > 8 || zSize > 6)) {
+        if (pSize > zSize + 1 && pSize > 8) pSize--;
+        else if (zSize > 6) zSize--;
+        else pSize--;
+      }
+      pack();
+    }
+    const pStep = primary.size + 2;
+    for (const [i, row] of primary.rows.entries())
+      text(row, area.x + width / 2, subTop + 5 + i * pStep, primary.size, '#fff4e2', 'center', 900);
+    if (translated) {
+      const zStep = translated.size + 2;
+      const y0 = subTop + 6 + primary.rows.length * pStep;
+      for (const [i, row] of translated.rows.entries())
+        text(row, area.x + width / 2, y0 + i * zStep, translated.size, '#fff4e2', 'center', 900);
+    }
   }
 }
 
@@ -640,9 +659,9 @@ function frameLoop() {
   g.shotIdx = si;
   g.beatN = (t - AA.beat0) / BEAT;
   g.shotP = clamp((t - shot.t) / Math.max(.4, next - shot.t), 0, 1);
-  const { line, gap } = window.MV_STORY.__lyricCue(LY, t, DUR, SONG.lang);
-  g.lyric = line?.text || gap;
-  g.translation = line?.translation || '';
+  const cue = window.MV_STORY.__lyricCue(LY, t, DUR, SONG.lang);
+  g.lyric = cue.line?.text || cue.gap;
+  g.translation = cue.line?.translation || '';
   try {
     paint();
     lastErr = null;
