@@ -402,8 +402,8 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   if (opt.translation && opt.limit != null) {
     const blockBottom = () => cy + ((rs.length - 1) * px * (latin ? 1.6 : 1.18)) / 2 + px / 2;
     while (px > 36) {
-      const zh = Math.min(36, px * .46);
-      if (blockBottom() + 12 + zh <= opt.limit) break;
+      const zh = Math.min(48, Math.max(34, px * .58));
+      if (blockBottom() + 14 + zh <= opt.limit) break;
       px -= 4;
       rs = layout(px);
       evenRows();
@@ -444,7 +444,7 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   }
   const bottom = y0 + (rs.length - 1) * lh + px / 2;
   if (opt.translation) {
-    const zh = Math.min(36, Math.max(20, px * .46));
+    const zh = Math.min(48, Math.max(34, px * .58));
     const step = (opt.step || .05) * Math.min(1, [...str].length / Math.max(1, [...opt.translation].length));
     candy(opt.translation, cx, bottom + 8 + zh * .55, zh, maxW, appear, t, seed,
           { hop: opt.hop, maxRows: 1, step });
@@ -471,7 +471,7 @@ function subtitle(str, p, y, translation, insetLeft) {
   const floorY = Math.min(y || H * .9, subtitleCeiling);
   const maxW = insetLeft ? W - insetLeft - 64 : W * .8;
   const cx = insetLeft ? insetLeft + (W - insetLeft) / 2 : W / 2;
-  let pSize = 50, tSize = translation ? 28 : 0;
+  let pSize = 50, tSize = translation ? 40 : 0;
   const measure = () => {
     const primary = rows(str, pSize, maxW);
     const translated = translation ? rows(translation, tSize, maxW) : [];
@@ -482,9 +482,10 @@ function subtitle(str, p, y, translation, insetLeft) {
     return { primary, translated, gap, pStep, tStep, stack };
   };
   let box = measure();
-  while (box.stack > 168 && (pSize > 30 || tSize > 16)) {
-    if (pSize > 30) pSize -= 2;
-    else tSize -= 2;
+  while (box.stack > 210 && (pSize > 32 || tSize > 32)) {
+    if (pSize > tSize && pSize > 32) pSize -= 2;
+    else if (tSize > 32) tSize -= 2;
+    else pSize -= 2;
     box = measure();
   }
   const primaryFirst = floorY - box.stack + pSize * .5;
@@ -540,13 +541,19 @@ function filmStrip(x, chars, firstK, total, line, t, dir) {
 function speech(line, p, tail, t, k) {
   if (p <= 0) return;
   const str = line.text;
-  const maxW = 680;
-  let px = str.length > 18 ? 58 : 70;
-  if (line.translation && px > 46) px -= 8;
+  const maxW = 760;
+  let px = str.length > 18 ? 52 : 64;
+  const small = line.translation ? 42 : 0;
   const rs = rows(str, px, maxW);
   font(px);
   const tw = Math.max(...rs.map(r => ctx.measureText(r).width));
-  const bw = Math.max(330, tw + 130), bh = rs.length * px * 1.25 + 100;
+  let zhSize = small;
+  if (line.translation) {
+    font(zhSize);
+    while (zhSize > 32 && ctx.measureText(line.translation).width > maxW) { zhSize -= 2; font(zhSize); }
+  }
+  const zhBand = line.translation ? zhSize + 28 : 0;
+  const bw = Math.max(360, tw + 140), bh = rs.length * px * 1.25 + 96 + zhBand;
   const bx = W * .72 - bw / 2 + (k % 2 ? 40 : -20), by = H * .3 - bh / 2 + (k % 2 ? 60 : 0);
   const cx = bx + bw / 2, cy = by + bh / 2;
   const sc = easeElastic(clamp(p * 1.6, 0, 1)) * (1 + Math.sin(t * 6) * .006);
@@ -571,25 +578,21 @@ function speech(line, p, tail, t, k) {
   ctx.fillStyle = '#ffffff';
   body(); ctx.fill(); wedge(); ctx.fill();
   font(px); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1d1626';
-  const lift = line.translation ? 16 : 0;
   const shown = [...str].slice(0, Math.ceil([...str].length * clamp(p * 2.2, 0, 1))).join('');
   let left = [...shown].length;
+  const textCy = cy - zhBand / 2;
   rs.forEach((r, i) => {
     const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length;
     font(px); const fullW = ctx.measureText(r).width;
     ctx.textAlign = 'left';
-    ctx.fillText(s, cx - fullW / 2, cy - lift + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
+    ctx.fillText(s, cx - fullW / 2, textCy + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
   });
   if (line.translation) {
-    const inner = Math.max(120, bw - 108);
-    let small = 24;
-    font(small);
-    while (small > 14 && ctx.measureText(line.translation).width > inner) { small -= 1; font(small); }
-    ctx.font = `900 ${Math.round(small)}px ${FONT}`;
+    ctx.font = `900 ${Math.round(zhSize)}px ${FONT}`;
     ctx.fillStyle = '#1d1626';
     ctx.textAlign = 'center';
     const partial = [...line.translation].slice(0, Math.ceil([...line.translation].length * clamp(p * 2.2, 0, 1))).join('');
-    ctx.fillText(partial, cx, by + bh - 28);
+    ctx.fillText(partial, cx, by + bh - zhBand / 2);
   }
   ctx.restore();
   // anime emphasis marks next to the bubble
