@@ -214,6 +214,19 @@ function ticket({ R, S, T }, x, y, w, h, label, color = red) {
   for (let i = 0; i < 11; i++) R(x + w * .16 + i * w * .062, y + h - 8, 1 + i % 2, 3, black);
 }
 
+function ballot({ R, T, O }) {
+  R(22, 8, 56, 50, page);
+  R(22, 8, 56, 4, '#8d3a4a');
+  T('當選', 50, 16, 7, red);
+  [28, 37, 46].forEach((y, i) => {
+    R(28, y, 20, 2, '#c7a9a0');
+    if (i === 1) {
+      O(50, y - 6, 16, 14, red);
+      O(53, y - 4, 10, 10, page);
+    } else O(53, y - 4, 10, 10, '#e4d0c2');
+  });
+}
+
 function lantern({ R, O }, x, y, size) {
   R(x + size * .44, 0, 2, y, brown);
   O(x, y, size, size * .88, red);
@@ -442,7 +455,8 @@ const art = {
   },
   receipt(B, g) {
     const cap = g.shot.caption || '';
-    const label = cap.includes('特別獎') ? '特別獎' : cap.includes('選票') ? '選票' : '頭獎';
+    if (cap.includes('選票')) { ballot(B); return; }
+    const label = cap.includes('特別獎') ? '特別獎' : '頭獎';
     ticket(B, 24, 10, 52, 46, label);
     star(B, 79, 16, yellow);
   },
