@@ -452,34 +452,47 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   return bottom;
 }
 let subtitleCeiling = H;
-function outlinedRows(lines, size, firstY, spacing, alpha) {
+function outlinedRows(lines, size, firstY, spacing, alpha, cx) {
   ctx.save();
   font(size, 800); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = alpha;
   lines.forEach((r, i) => {
     const yy = firstY + i * spacing;
     ctx.lineJoin = 'round'; ctx.lineWidth = size * .2; ctx.strokeStyle = 'rgba(16,10,30,.85)';
-    ctx.strokeText(r, W / 2, yy);
-    ctx.fillStyle = '#ffffff'; ctx.fillText(r, W / 2, yy);
+    ctx.strokeText(r, cx == null ? W / 2 : cx, yy);
+    ctx.fillStyle = '#ffffff'; ctx.fillText(r, cx == null ? W / 2 : cx, yy);
   });
   ctx.restore();
 }
-// Keep the lower-third subtitle above the interactive playback controls.
-// Chinese uses this same outline, smaller, directly under the source line.
-function subtitle(str, p, y, translation) {
+// Keep the lower-third subtitle above the controls. Chinese is a separate
+// line under the source, and the source shrinks when the pair would collide.
+function subtitle(str, p, y, translation, insetLeft) {
   const alpha = clamp(p * 4, 0, 1);
-  const bottom = Math.min(y || H * .9, subtitleCeiling);
-  let tSize = 30;
-  let translated = translation ? rows(translation, tSize, W * .8) : [];
-  while (translation && tSize > 16 && translated.length * tSize * 1.25 > 72) {
-    tSize -= 2;
-    translated = rows(translation, tSize, W * .8);
+  const floorY = Math.min(y || H * .9, subtitleCeiling);
+  const maxW = insetLeft ? W - insetLeft - 64 : W * .8;
+  const cx = insetLeft ? insetLeft + (W - insetLeft) / 2 : W / 2;
+  let pSize = 50, tSize = translation ? 28 : 0;
+  const measure = () => {
+    const primary = rows(str, pSize, maxW);
+    const translated = translation ? rows(translation, tSize, maxW) : [];
+    const gap = translated.length ? Math.max(14, pSize * .28) : 0;
+    const pStep = pSize * 1.22, tStep = Math.max(tSize * 1.2, 1);
+    const stack = (primary.length - 1) * pStep + pSize * .62
+      + gap + (translated.length ? tSize * .62 + (translated.length - 1) * tStep : 0);
+    return { primary, translated, gap, pStep, tStep, stack };
+  };
+  let box = measure();
+  while (box.stack > 168 && (pSize > 30 || tSize > 16)) {
+    if (pSize > 30) pSize -= 2;
+    else tSize -= 2;
+    box = measure();
   }
-  const translatedSpan = translated.length ? translated.length * tSize * 1.25 + 8 : 0;
-  const primary = rows(str, 50, W * .8);
-  const primaryLast = bottom - translatedSpan;
-  outlinedRows(primary, 50, primaryLast - (primary.length - 1) * 62, 62, alpha);
-  if (translated.length) outlinedRows(translated, tSize, primaryLast + tSize * .65, tSize * 1.25, alpha);
+  const primaryFirst = floorY - box.stack + pSize * .5;
+  outlinedRows(box.primary, pSize, primaryFirst, box.pStep, alpha, cx);
+  if (box.translated.length) {
+    const zhFirst = primaryFirst + (box.primary.length - 1) * box.pStep + pSize * .62 + box.gap + tSize * .5;
+    outlinedRows(box.translated, tSize, zhFirst, box.tStep, alpha, cx);
+  }
 }
 
 // 殘光: a film strip with one character to a frame
@@ -746,6 +759,7 @@ function songFrame(t, T, seg) {
   const cue = window.MV_STORY.__lyricCue(LINES, t, DUR, SONG.lang);
   const line = cue.line;
   const bt = beatN(t), age = t - seg.t0;
+  const banner = age < 1.8 && seg.label ? 500 : 0;
   if (seg.mode === 'night') {
     bgNight(t);
     const who = whoOf(seg);
@@ -755,7 +769,7 @@ function songFrame(t, T, seg) {
     fig(ctx, who, { ...base, x: W * .62, move: age < 2 ? 'wave' : DANCE, i: 0 });
     if (line) {
       scatter(line, t);
-      subtitle(line.text, (t - line.t) / .6, undefined, line.translation);
+      subtitle(line.text, (t - line.t) / .6, undefined, line.translation, banner);
     }
   } else if (seg.mode === 'verse' && seg.sub === 'film') {
     bgPaper(t, seg);
@@ -766,7 +780,7 @@ function songFrame(t, T, seg) {
       const cs = [...line.text].filter(c => c.trim()), half = Math.ceil(cs.length / 2);
       filmStrip(W * .1, cs.slice(0, half), 0, cs.length, line, t, 1);
       filmStrip(W * .9, cs.slice(half), half, cs.length, line, t, -1);
-      subtitle(line.text, (t - line.t) / .6, undefined, line.translation);
+      subtitle(line.text, (t - line.t) / .6, undefined, line.translation, banner);
     } else { filmStrip(W * .1, [], 0, 1, { t: 1e9, d: 1 }, t, 1); filmStrip(W * .9, [], 0, 1, { t: 1e9, d: 1 }, t, -1); }
   } else if (seg.mode === 'verse') {
     bgPaper(t, seg);
@@ -793,7 +807,7 @@ function songFrame(t, T, seg) {
     const k = seg.who % Math.max(1, LEAD.length);
     petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
     taskbar(t, 'PETS');
-    if (line) subtitle(line.text, (t - line.t) / .6, H * .86, line.translation);
+    if (line) subtitle(line.text, (t - line.t) / .6, H * .86, line.translation, banner);
   }
   stinger(seg, t);
   hud(t, T, seg, seg.mode === 'verse' || seg.mode === 'desk');
