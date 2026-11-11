@@ -120,14 +120,8 @@ S.__cleanCanvas = context => {
   return context;
 };
 
-// Subtitles and the instrumental indicators both follow the audio clock.
-const GAP_LABELS = {
-  zh: ['前奏', '間奏', '演奏尾聲'],
-  en: ['Intro', 'Instrumental break', 'Instrumental outro'],
-  ja: ['前奏', '間奏', '演奏の余韻'],
-  yue: ['前奏', '間奏', '演奏尾聲']
-};
-S.__lyricCue = (lines, t, duration, lang) => {
+// Lyrics follow the audio clock. Instrumental gaps stay blank in every language.
+S.__lyricCue = (lines, t) => {
   let lo = 0, hi = lines.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
@@ -135,11 +129,8 @@ S.__lyricCue = (lines, t, duration, lang) => {
     else hi = mid - 1;
   }
   const line = lines[hi];
-  const start = line ? line.t + line.d : 0;
-  if (line && t < start) return { line, gap: '' };
-  const end = lines[lo]?.t ?? duration;
-  const label = (GAP_LABELS[lang] || GAP_LABELS.zh)[!line ? 0 : lo < lines.length ? 1 : 2];
-  return { line: null, gap: end - start >= 3 && t >= start + .18 ? label : '' };
+  if (line && t < line.t + line.d) return { line, gap: '' };
+  return { line: null, gap: '' };
 };
 
 /* ============================ s023 百年夢 ========================== */

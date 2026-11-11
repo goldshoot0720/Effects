@@ -660,7 +660,7 @@ function frameLoop() {
   g.beatN = (t - AA.beat0) / BEAT;
   g.shotP = clamp((t - shot.t) / Math.max(.4, next - shot.t), 0, 1);
   const cue = window.MV_STORY.__lyricCue(LY, t, DUR, SONG.lang);
-  g.lyric = cue.line?.text || cue.gap;
+  g.lyric = cue.line?.text || '';
   g.translation = cue.line?.translation || '';
   try {
     paint();

@@ -70,9 +70,9 @@ for (const meta of songs) {
 }
 const japaneseJackpot = context.window.MV_SONG_DATA.s104;
 const lyricAt = time => story.__lyricCue(japaneseJackpot.lines, time, japaneseJackpot.analysis.duration, 'ja');
-assert.equal(lyricAt(57 - 3.4).gap, '間奏');
-assert.equal(lyricAt(59 - 3.4).gap, '間奏');
-assert.equal(lyricAt(111 - 3.4).gap, '演奏の余韻');
+assert.equal(lyricAt(57 - 3.4).gap, '');
+assert.equal(lyricAt(59 - 3.4).gap, '');
+assert.equal(lyricAt(111 - 3.4).gap, '');
 assert.equal(lyricAt(66.28).line.text, 'りょうけのおやもあつまる');
 assert.equal(lyricAt(66.28).line.translation, '兩家的父母也齊聚一堂');
 assert.equal(lyricAt(66.28).gap, '');

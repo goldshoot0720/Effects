@@ -105,11 +105,11 @@ const KIND = { c: 'CHORUS', v: 'VERSE', h: 'HOOK' };
 function buildSegs() {
   SEGS = [];
   let nv = 0, nc = 0, nh = 0;
-  if (!SEC.length || SEC[0].start > 1.5) SEGS.push({ t0: 0, mode: 'night', label: 'INTRO', who: 0 });
+  if (!SEC.length || SEC[0].start > 1.5) SEGS.push({ t0: 0, mode: 'night', label: '', who: 0 });
   SEC.forEach((s, i) => {
     const k = (s.kind || 'v')[0];
     // a breath between sections: an interlude on the desktop
-    if (i > 0 && s.start - SEC[i - 1].end > 3) SEGS.push({ t0: SEC[i - 1].end + .4, mode: 'desk', label: 'INTERLUDE', who: i });
+    if (i > 0 && s.start - SEC[i - 1].end > 3) SEGS.push({ t0: SEC[i - 1].end + .4, mode: 'desk', label: '', who: i });
     let seg;
     if (k === 'c') seg = { mode: 'chorus', sub: nc++ % 2 ? 'stage' : 'burst' };
     else if (k === 'h') seg = { mode: 'night', sub: nh++ };
@@ -121,7 +121,7 @@ function buildSegs() {
     SEGS.push(seg);
   });
   const end = SEC.length ? SEC[SEC.length - 1].end + .6 : DUR;
-  if (DUR - end > 3) SEGS.push({ t0: end, mode: 'night', label: 'OUTRO', who: SEC.length });
+  if (DUR - end > 3) SEGS.push({ t0: end, mode: 'night', label: '', who: SEC.length });
   CUTS = [HEAD, ...SEGS.slice(1).map(s => HEAD + s.t0), HEAD + DUR, HEAD + DUR + CASTT];
 }
 function segAt(t) { let r = SEGS[0]; for (const s of SEGS) if (t >= s.t0) r = s; return r; }
@@ -429,25 +429,22 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
     }
   }
   const bottom = y0 + (rs.length - 1) * lh + px / 2;
-  // The source line stays where the old picture put it. Chinese takes the
-  // open gap under that line, or the gap between its rows when heads are close.
-  if (opt.translation && !opt.fitted) {
-    const gapTop = bottom + Math.max(6, px * .06);
-    const room = (opt.limit == null ? bottom + px : opt.limit) - gapTop;
-    let small, cy;
-    if (room >= 44) {
-      small = Math.min(px * .5, 42, room * .7);
-      cy = gapTop + small * .62;
-    } else if (rs.length > 1) {
-      small = Math.min(34, lh * .2);
-      cy = y0 + lh / 2;
-    } else {
-      small = Math.min(32, px * .4);
-      cy = Math.max(108, y0 - px * .72);
+  // Source glyphs stay on the old picture. The translation only changes size
+  // and sits in the open gap under that line.
+  if (opt.translation) {
+    const gapTop = bottom + Math.max(8, px * .08);
+    const limit = opt.limit == null ? Math.min(subtitleCeiling, gapTop + px * .85) : opt.limit;
+    const room = limit - gapTop;
+    if (room >= 18) {
+      let size = Math.min(42, px * .42, room * .72);
+      let lines = rows(opt.translation, size, maxW);
+      while (size > 16 && lines.length * size * 1.15 > room) {
+        size -= 2;
+        lines = rows(opt.translation, size, maxW);
+      }
+      if (lines.length * size * 1.15 <= room + 2)
+        outlinedRows(lines, size, gapTop + size * .55, size * 1.15, clamp((t - appear) * 5, 0, 1));
     }
-    const step = (opt.step || .05) * Math.min(1, [...str].length / Math.max(1, [...opt.translation].length));
-    candy(opt.translation, cx, cy, small, maxW, appear, t, seed,
-          { hop: opt.hop, maxRows: 1, step, fitted: true });
   }
   return bottom;
 }
@@ -467,14 +464,19 @@ function outlinedRows(lines, size, firstY, spacing, alpha) {
 // Keep the lower-third subtitle above the interactive playback controls.
 // Chinese uses this same outline, smaller, directly under the source line.
 function subtitle(str, p, y, translation) {
-  const primary = rows(str, 50, W * .8);
-  const translated = translation ? rows(translation, 32, W * .8) : [];
   const alpha = clamp(p * 4, 0, 1);
   const bottom = Math.min(y || H * .9, subtitleCeiling);
-  const translatedSpan = translated.length ? 47 + (translated.length - 1) * 40 + 16 : 0;
+  let tSize = 30;
+  let translated = translation ? rows(translation, tSize, W * .8) : [];
+  while (translation && tSize > 16 && translated.length * tSize * 1.25 > 72) {
+    tSize -= 2;
+    translated = rows(translation, tSize, W * .8);
+  }
+  const translatedSpan = translated.length ? translated.length * tSize * 1.25 + 8 : 0;
+  const primary = rows(str, 50, W * .8);
   const primaryLast = bottom - translatedSpan;
   outlinedRows(primary, 50, primaryLast - (primary.length - 1) * 62, 62, alpha);
-  if (translated.length) outlinedRows(translated, 32, primaryLast + 47, 40, alpha);
+  if (translated.length) outlinedRows(translated, tSize, primaryLast + tSize * .65, tSize * 1.25, alpha);
 }
 
 // 殘光: a film strip with one character to a frame
@@ -727,7 +729,7 @@ function hud(t, T, seg, dark) {
 // a section label that slides in when the look changes
 function stinger(seg, t) {
   const u = t - seg.t0;
-  if (u < 0 || u > 1.8 || seg.label === 'INTRO') return;
+  if (u < 0 || u > 1.8 || !seg.label) return;
   const p = easeOut(clamp(u / .35, 0, 1)), q = u > 1.4 ? easeIn((u - 1.4) / .4) : 0;
   const x = lerp(-520, 0, p) - q * 520;
   ctx.save();
@@ -792,16 +794,6 @@ function songFrame(t, T, seg) {
     petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
     taskbar(t, 'PETS');
     if (line) subtitle(line.text, (t - line.t) / .6, H * .86, line.translation);
-  }
-  if (cue.gap) {
-    ctx.save();
-    font(34, 800);
-    const w = ctx.measureText(cue.gap).width + 60;
-    ctx.fillStyle = 'rgba(28,19,45,.9)';
-    rrect((W - w) / 2, H * .26, w, 60, 22); ctx.fill();
-    ctx.fillStyle = '#fff5e5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(cue.gap, W / 2, H * .26 + 31);
-    ctx.restore();
   }
   stinger(seg, t);
   hud(t, T, seg, seg.mode === 'verse' || seg.mode === 'desk');
