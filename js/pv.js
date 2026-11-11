@@ -553,8 +553,9 @@ function speech(line, p, tail, t, k) {
     font(zhSize);
     while (zhSize > 32 && ctx.measureText(line.translation).width > maxW) { zhSize -= 2; font(zhSize); }
   }
-  const zhBand = line.translation ? zhSize + 28 : 0;
-  const bw = Math.max(360, tw + 140), bh = rs.length * px * 1.25 + 96 + zhBand;
+  const lineGap = line.translation ? 12 : 0;
+  const content = rs.length * px * 1.25 + (line.translation ? lineGap + zhSize : 0);
+  const bw = Math.max(360, tw + 140), bh = content + 52;
   const bx = W * .72 - bw / 2 + (k % 2 ? 40 : -20), by = H * .3 - bh / 2 + (k % 2 ? 60 : 0);
   const cx = bx + bw / 2, cy = by + bh / 2;
   const sc = easeElastic(clamp(p * 1.6, 0, 1)) * (1 + Math.sin(t * 6) * .006);
@@ -581,19 +582,20 @@ function speech(line, p, tail, t, k) {
   font(px); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1d1626';
   const shown = [...str].slice(0, Math.ceil([...str].length * clamp(p * 2.2, 0, 1))).join('');
   let left = [...shown].length;
-  const textCy = cy - zhBand / 2;
+  const firstY = by + (bh - content) / 2 + px * .55;
   rs.forEach((r, i) => {
     const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length;
     font(px); const fullW = ctx.measureText(r).width;
     ctx.textAlign = 'left';
-    ctx.fillText(s, cx - fullW / 2, textCy + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
+    ctx.fillText(s, cx - fullW / 2, firstY + i * px * 1.25);
   });
   if (line.translation) {
+    const lastY = firstY + (rs.length - 1) * px * 1.25;
     ctx.font = `900 ${Math.round(zhSize)}px ${FONT}`;
     ctx.fillStyle = '#1d1626';
     ctx.textAlign = 'center';
     const partial = [...line.translation].slice(0, Math.ceil([...line.translation].length * clamp(p * 2.2, 0, 1))).join('');
-    ctx.fillText(partial, cx, by + bh - zhBand / 2);
+    ctx.fillText(partial, cx, lastY + px * .55 + lineGap + zhSize * .45);
   }
   ctx.restore();
   // anime emphasis marks next to the bubble
