@@ -210,7 +210,7 @@ function ticket({ R, S, T }, x, y, w, h, label, color = red) {
     [x + w * .5, y + h], [x + w * .4, y + h - 2], [x + w * .3, y + h],
     [x + w * .2, y + h - 2], [x + w * .1, y + h], [x, y + h - 2]], page);
   R(x + 3, y + 6, w - 6, 3, color);
-  T(label, x + w / 2, y + 13, 8, color);
+  T(label, x + w / 2, y + 13, label.length > 2 ? 6 : 8, color);
   for (let i = 0; i < 11; i++) R(x + w * .16 + i * w * .062, y + h - 8, 1 + i % 2, 3, black);
 }
 
@@ -440,7 +440,12 @@ const art = {
     B.O(44, 34, 11, 11, red); B.O(31, 39, 6, 6, purple); B.O(63, 39, 6, 6, purple);
     B.R(25, 51, 50, 4, paper);
   },
-  receipt(B) { ticket(B, 24, 10, 52, 46, '頭獎'); star(B, 79, 16, yellow); },
+  receipt(B, g) {
+    const cap = g.shot.caption || '';
+    const label = cap.includes('特別獎') ? '特別獎' : cap.includes('選票') ? '選票' : '頭獎';
+    ticket(B, 24, 10, 52, 46, label);
+    star(B, 79, 16, yellow);
+  },
   lottery(B, g) {
     const cap = g.shot.caption || '';
     // 威力彩第一區只到 38；大樂透可以到 49。539 才用 39。
