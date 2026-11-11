@@ -398,6 +398,18 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
     }
   };
   evenRows();
+  // Fit the source and the Chinese line into a fixed band above the cast.
+  // The band does not follow the dance, so the size stays put for the line.
+  if (opt.translation && opt.limit != null) {
+    const blockBottom = () => cy + ((rs.length - 1) * px * (latin ? 1.6 : 1.18)) / 2 + px / 2;
+    while (px > 78) {
+      const zh = Math.min(64, Math.max(52, Math.round(px * .42)));
+      if (blockBottom() + 10 + zh * 1.15 <= opt.limit) break;
+      px -= 4;
+      rs = layout(px);
+      evenRows();
+    }
+  }
   font(px);
   const lh = px * (latin ? 1.6 : 1.18), y0 = cy - (rs.length - 1) * lh / 2;
   let k = 0;
@@ -789,8 +801,11 @@ function songFrame(t, T, seg) {
     lineup(CHORUS, t, { y: H * 1.0, h: H * (n > 2 ? .6 : .68), move: DANCE, stagger: true });
     ctx.restore();
     if (line) {
-      candy(line.text, W / 2, H * .22, 132, W * .86, line.t - .05, t, line.idx * 3,
-            { hop: true, maxRows: 2, translation: line.translation });
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, W, H * .40); ctx.clip();
+      candy(line.text, W / 2, H * .20, 132, W * .86, line.t - .05, t, line.idx * 3,
+            { hop: true, maxRows: 2, translation: line.translation, limit: H * .38 });
+      ctx.restore();
     }
   } else if (seg.mode === 'desk') {
     bgDesk(t);
