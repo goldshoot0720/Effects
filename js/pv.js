@@ -391,9 +391,23 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   let px = size, rs = layout(px);
   while (rs.length > (opt.maxRows || 2) && px > 24) { px -= 2; rs = layout(px); }
   // a line with no spaces wraps into even rows, not a full row and a widow
-  if (rs.length > 1 && !/[ 　]/.test(str.trim())) {
-    const cs = [...str.trim()], n = rs.length, per = Math.ceil(cs.length / n);
-    rs = Array.from({ length: n }, (_, i) => cs.slice(i * per, (i + 1) * per).join('')).filter(Boolean);
+  const evenRows = () => {
+    if (rs.length > 1 && !/[ 　]/.test(str.trim())) {
+      const cs = [...str.trim()], n = rs.length, per = Math.ceil(cs.length / n);
+      rs = Array.from({ length: n }, (_, i) => cs.slice(i * per, (i + 1) * per).join('')).filter(Boolean);
+    }
+  };
+  evenRows();
+  // Non-Chinese lyric text may shrink so the Chinese line fits underneath it.
+  if (opt.translation && opt.limit != null) {
+    const blockBottom = () => cy + ((rs.length - 1) * px * (latin ? 1.6 : 1.18)) / 2 + px / 2;
+    while (px > 36) {
+      const zh = Math.min(36, px * .46);
+      if (blockBottom() + 12 + zh <= opt.limit) break;
+      px -= 4;
+      rs = layout(px);
+      evenRows();
+    }
   }
   font(px);
   const lh = px * (latin ? 1.6 : 1.18), y0 = cy - (rs.length - 1) * lh / 2;
@@ -429,22 +443,11 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
     }
   }
   const bottom = y0 + (rs.length - 1) * lh + px / 2;
-  // Source glyphs stay on the old picture. The translation only changes size
-  // and sits in the open gap under that line.
   if (opt.translation) {
-    const gapTop = bottom + Math.max(8, px * .08);
-    const limit = opt.limit == null ? Math.min(subtitleCeiling, gapTop + px * .85) : opt.limit;
-    const room = limit - gapTop;
-    if (room >= 18) {
-      let size = Math.min(42, px * .42, room * .72);
-      let lines = rows(opt.translation, size, maxW);
-      while (size > 16 && lines.length * size * 1.15 > room) {
-        size -= 2;
-        lines = rows(opt.translation, size, maxW);
-      }
-      if (lines.length * size * 1.15 <= room + 2)
-        outlinedRows(lines, size, gapTop + size * .55, size * 1.15, clamp((t - appear) * 5, 0, 1));
-    }
+    const zh = Math.min(36, Math.max(20, px * .46));
+    const step = (opt.step || .05) * Math.min(1, [...str].length / Math.max(1, [...opt.translation].length));
+    candy(opt.translation, cx, bottom + 8 + zh * .55, zh, maxW, appear, t, seed,
+          { hop: opt.hop, maxRows: 1, step });
   }
   return bottom;
 }
@@ -525,7 +528,8 @@ function speech(line, p, tail, t, k) {
   if (p <= 0) return;
   const str = line.text;
   const maxW = 680;
-  const px = str.length > 18 ? 58 : 70;
+  let px = str.length > 18 ? 58 : 70;
+  if (line.translation && px > 46) px -= 8;
   const rs = rows(str, px, maxW);
   font(px);
   const tw = Math.max(...rs.map(r => ctx.measureText(r).width));
@@ -554,29 +558,25 @@ function speech(line, p, tail, t, k) {
   ctx.fillStyle = '#ffffff';
   body(); ctx.fill(); wedge(); ctx.fill();
   font(px); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1d1626';
+  const lift = line.translation ? 16 : 0;
   const shown = [...str].slice(0, Math.ceil([...str].length * clamp(p * 2.2, 0, 1))).join('');
   let left = [...shown].length;
   rs.forEach((r, i) => {
     const rc = [...r], s = rc.slice(0, Math.max(0, left)).join(''); left -= rc.length;
     font(px); const fullW = ctx.measureText(r).width;
     ctx.textAlign = 'left';
-    ctx.fillText(s, cx - fullW / 2, cy + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
+    ctx.fillText(s, cx - fullW / 2, cy - lift + (i - (rs.length - 1) / 2) * px * 1.25 + 4);
   });
   if (line.translation) {
     const inner = Math.max(120, bw - 108);
-    let small = 26;
+    let small = 24;
     font(small);
     while (small > 14 && ctx.measureText(line.translation).width > inner) { small -= 1; font(small); }
-    const textBottom = cy + ((rs.length - 1) * px * 1.25) / 2 + px * .42;
-    const roomBottom = by + bh - 18;
-    const place = Math.min(roomBottom, textBottom + small * .85);
-    if (place < roomBottom + 1) {
-      ctx.font = `900 ${Math.round(small)}px ${FONT}`;
-      ctx.fillStyle = '#1d1626';
-      ctx.textAlign = 'center';
-      const partial = [...line.translation].slice(0, Math.ceil([...line.translation].length * clamp(p * 2.2, 0, 1))).join('');
-      ctx.fillText(partial, cx, place);
-    }
+    ctx.font = `900 ${Math.round(small)}px ${FONT}`;
+    ctx.fillStyle = '#1d1626';
+    ctx.textAlign = 'center';
+    const partial = [...line.translation].slice(0, Math.ceil([...line.translation].length * clamp(p * 2.2, 0, 1))).join('');
+    ctx.fillText(partial, cx, by + bh - 28);
   }
   ctx.restore();
   // anime emphasis marks next to the bubble
