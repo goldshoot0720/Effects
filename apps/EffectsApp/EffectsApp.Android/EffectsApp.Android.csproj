@@ -28,6 +28,7 @@
     <AndroidAsset Include="..\..\..\art\dance\**\*.jpg" Link="Assets\Web\art\dance\%(RecursiveDir)%(Filename)%(Extension)" />
     <AndroidAsset Include="..\..\..\js\player-controls.js" Link="Assets\Web\js\player-controls.js" />
     <AndroidAsset Include="..\..\..\js\px.js" Link="Assets\Web\js\px.js" />
+    <AndroidAsset Include="..\..\..\js\pixel-scenes.js" Link="Assets\Web\js\pixel-scenes.js" />
     <AndroidAsset Include="..\..\..\pixel.html" Link="Assets\Web\pixel.html" />
     <AndroidAsset Include="..\..\..\js\pv.js" Link="Assets\Web\js\pv.js" />
     <AndroidAsset Include="..\..\..\js\story.js" Link="Assets\Web\js\story.js" />

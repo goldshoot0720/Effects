@@ -11,7 +11,8 @@ const context = vm.createContext({window:{}});
 const run = name => vm.runInContext(read(name).toString(), context, {filename:name});
 run('data/songs.js');
 run('js/story.js');
-const {MV_SONGS: songs, MV_STORY: story} = context.window;
+run('js/pixel-scenes.js');
+const {MV_SONGS: songs, MV_STORY: story, MV_PIXEL_SCENES: pixelScenes} = context.window;
 const sources = JSON.parse(read('data/song_sources.json'));
 const imported = JSON.parse(read('data/import-neweffects.json'));
 assert.equal(songs.length, 36);
@@ -30,6 +31,8 @@ for (const meta of songs) {
   assert.equal(sha(read(`data/lyrics/${meta.id}.srt`)), provenance.subtitleSha256);
   assert.equal(data.analysis.duration, meta.dur);
   assert.equal(data.lines.length, meta.lines);
+  assert.equal(data.tagline, meta.tagline);
+  assert.equal(data.tagline, sources.find(source => source.id === meta.id).tagline);
   assert(data.lines.length > 0);
   assert.equal(Buffer.from(data.analysis.bands, 'base64').length, data.analysis.frames * data.analysis.bandCount);
   for (const [i, line] of data.lines.entries()) {
@@ -37,6 +40,14 @@ for (const meta of songs) {
     if (i) assert(line.t >= data.lines[i-1].t + data.lines[i-1].d - .002, meta.id + ' overlapping cues');
   }
   story.__setLanguage(data);
+  const pixel = pixelScenes.cues(data, meta);
+  assert.equal(pixel[0].t, 0, meta.id + ' has no opening scene');
+  for (const [index, scene] of pixel.entries()) {
+    assert(scene.t >= 0 && scene.t < meta.dur, meta.id + ' pixel scene out of range');
+    if (index) assert(scene.t > pixel[index - 1].t, meta.id + ' out-of-order pixel scene');
+    if (scene.index >= 0) assert.equal(scene.t, data.lines[scene.index].t);
+    for (const who of scene.cast) assert(story.__who(who), meta.id + ' unknown pixel cast member');
+  }
   const adapted = story.__forSong(data);
   assert.equal(adapted.front, story[meta.baseId].front, meta.id + ' lost its story');
   assert(adapted.shots.every(s => s.t >= 0 && s.t < meta.dur));
@@ -47,6 +58,13 @@ for (const meta of songs) {
   const file = `PV${String(meta.pv).padStart(2,'0')}${meta.lang === 'zh' ? '' : '_' + meta.lang.toUpperCase()}`;
   assert(!seenFiles.has(file)); seenFiles.add(file);
 }
+const japaneseJackpot = context.window.MV_SONG_DATA.s104;
+const lyricAt = time => story.__lyricCue(japaneseJackpot.lines, time, japaneseJackpot.analysis.duration, 'ja');
+assert.equal(lyricAt(57 - 3.4).gap, '間奏');
+assert.equal(lyricAt(59 - 3.4).gap, '間奏');
+assert.equal(lyricAt(111 - 3.4).gap, '演奏の余韻');
+assert.equal(lyricAt(66.28).line.text, 'りょうけのおやもあつまる');
+assert.equal(lyricAt(66.28).gap, '');
 // A translated take must not change the original story's shot times.
 const before = JSON.stringify(story.s028.shots);
 story.__forSong(context.window.MV_SONG_DATA['s028-ja']).shots[1].t = 999;

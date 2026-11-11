@@ -12,6 +12,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--sat) + 76px);
   background: var(--night);
   color: var(--text);
   user-select: text;
@@ -28,7 +29,13 @@
 .archive button, #characterDialog button { font: inherit; cursor: pointer; }
 .archive :focus-visible, #characterDialog :focus-visible { outline: 2px solid #e6fc61; outline-offset: 4px; }
 .shell { width: min(100% - 88px, 1280px); margin-inline: auto; }
-.archive-header { border-bottom: 1px solid var(--line); background: #14111bd9; }
+.archive-header {
+  position: sticky;
+  top: var(--sat);
+  z-index: 2;
+  border-bottom: 1px solid var(--line);
+  background: #14111b;
+}
 .masthead { min-height: 75px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .wordmark { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 850; letter-spacing: .08em; white-space: nowrap; }
 .brand-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--lime); }
@@ -153,9 +160,10 @@
   .hero-panels { inset-inline: -23px; }
 }
 @media (max-width: 680px) {
+  #start { scroll-padding-top: calc(var(--sat) + 99px); }
   .shell { width: calc(100% - 32px); }
   .masthead { min-height: 59px; gap: 8px; flex-wrap: wrap; padding-block: 9px; }
-  .masthead nav { gap: 3px 12px; font-size: 12px; }
+  .masthead nav { width: 100%; gap: 3px 12px; font-size: 12px; }
   .masthead nav a { min-height: 32px; }
   .wordmark { gap: 7px; font-size: 13px; }
   .wordmark small { font-size: 8px; }

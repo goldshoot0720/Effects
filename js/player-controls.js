@@ -37,3 +37,17 @@ window.MV_VOLUME = function (audio) {
   group.addEventListener('keydown', e => e.stopPropagation());
   render();
 };
+
+/* Speed is shared across songs in the open player and starts at 1× on entry. */
+window.MV_SPEED = function (audio, onChange) {
+  const select = document.getElementById('playbackRate');
+  select.value = '1';
+  audio.playbackRate = 1;
+  select.addEventListener('change', () => {
+    const rate = Number(select.value);
+    audio.defaultPlaybackRate = rate;
+    audio.playbackRate = rate;
+    onChange?.(rate);
+  });
+  select.addEventListener('keydown', event => event.stopPropagation());
+};

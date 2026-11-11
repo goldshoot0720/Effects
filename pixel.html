@@ -50,7 +50,7 @@
   #transport{order:1}
   #time{order:2}
   #tools{order:3}
-  button.b,a.b{appearance:none;border:1px solid var(--line);background:var(--glass);color:var(--ink);
+  button.b,a.b,select.b{appearance:none;border:1px solid var(--line);background:var(--glass);color:var(--ink);
     font-family:var(--ui);font-size:10px;letter-spacing:.14em;border-radius:4px;padding:7px 10px;
     cursor:pointer;transition:.15s;white-space:nowrap;touch-action:manipulation}
   a.b{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
@@ -164,6 +164,8 @@
     .touch{display:block;margin-top:10px}
   }
 #transport .nav{width:auto;padding:0 12px}
+#tools .speed{appearance:auto;color-scheme:dark;min-width:52px;padding-inline:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+@media(max-width:820px) and (min-height:501px){#tools{flex-wrap:wrap}}
 .volume{display:flex;align-items:center;gap:6px;min-width:0}
 .volume input{width:80px;accent-color:#bda3ff}
 .volume output{font-size:12px;min-width:32px}
@@ -195,9 +197,13 @@
     <div id="tools">
       <button class="b" id="bList" aria-label="歌曲"><span class="wide">歌曲 <span class="k">S</span></span><span class="ico">曲</span></button>
       <button class="b" id="bQual" aria-label="像素粗細"><span class="wide">像素 <span class="k">Q ·</span> </span><span id="qName">中</span></button>
-      <button class="b" id="bCel" title="角色：T-pose 立繪人偶／手繪賽璐璐" aria-label="角色畫法"><span class="wide">角色 <span class="k">C ·</span> </span><span id="celName">立繪</span></button>
+      <button class="b" id="bCel" title="切換手繪像素角色和立繪人偶" aria-label="角色畫法"><span class="wide">角色 <span class="k">C ·</span> </span><span id="celName">像素</span></button>
+      <select class="b speed" id="playbackRate" aria-label="播放速度" title="播放速度">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+        <option value="1.5">1.5×</option><option value="2">2×</option>
+      </select>
       <button class="b" id="bFull" aria-label="全螢幕"><span class="wide">全螢幕 <span class="k">F</span></span><span class="ico">全</span></button>
-      <a class="b" id="bPv" href="index.html?view=archive" title="第一版本：二次元 PV"><span class="wide">第一版本</span><span class="ico">PV</span></a>
+      <a class="b" id="bPv" href="index.html?song=s102#library" title="第一版本：二次元 PV"><span class="wide">第一版本</span><span class="ico">PV</span></a>
     </div>
   </div>
 </div>
@@ -205,25 +211,26 @@
 <div id="start">
   <div class="in">
     <nav class="ver" aria-label="版本">
-      <a href="index.html?view=archive">第一版本 · 二次元 PV</a><span class="on">第二版本 · 像素 MV</span><a href="dance.html">手足舞蹈素材庫</a>
+      <a href="index.html?song=s102#library">第一版本 · 二次元 PV</a><span class="on">第二版本 · 像素 MV</span><a href="dance.html">手足舞蹈素材庫</a>
     </nav>
     <div class="kick">鋒 兄 宇 宙 · P I X E L　M V</div>
     <h2>選一首歌</h2>
     <div class="sub">9 首歌 · 中／英／日／粵 · 共 <span id="songCount">36</span> 個版本 · PC-98 像素 MV</div>
     <div id="grid"></div>
     <div class="keys">
-      空白 播放／暫停　·　← → 倒退／快進 10 秒　·　S 選歌　·　N P 換歌　·　Q 像素粗細　·　C 立繪／手繪　·　L 角色表　·　F 全螢幕
+      空白 播放／暫停　·　← → 倒退／快進 10 秒　·　S 選歌　·　N P 換歌　·　Q 像素粗細　·　C 像素／立繪　·　L 角色表　·　F 全螢幕
     </div>
     <div class="touch">點一首就開始。播放中輕點畫面，可以藏起或叫出按鈕。</div>
   </div>
 </div>
 
 <audio id="audio" preload="auto" playsinline></audio>
-<script src="data/songs.js?v=2.6.0"></script>
+<script src="data/songs.js?v=2.6.1"></script>
 <script src="data/cast.js?v=2.11.0"></script>
 <script src="js/puppet.js?v=2.12.0"></script>
-<script src="js/player-controls.js?v=2.4.0"></script>
-<script src="js/story.js?v=2.7.0"></script>
-<script src="js/px.js?v=2.7.0"></script>
+<script src="js/player-controls.js?v=2.5.0"></script>
+<script src="js/story.js?v=2.8.0"></script>
+<script src="js/pixel-scenes.js?v=1"></script>
+<script src="js/px.js?v=2.8.0"></script>
 </body>
 </html>

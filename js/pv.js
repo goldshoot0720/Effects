@@ -97,13 +97,6 @@ function meters(t, dt) {
   F.flash *= Math.pow(.0025, dt);
 }
 const beatN = t => (t - AA.beat0) / BEAT + 64;
-function lineAt(t) {
-  let lo = 0, hi = LINES.length - 1, r = -1;
-  while (lo <= hi) { const m = (lo + hi) >> 1; if (LINES[m].t <= t) { r = m; lo = m + 1; } else hi = m - 1; }
-  if (r >= 0 && t > LINES[r].t + LINES[r].d + 1.2) return -1;
-  return r;
-}
-
 /* The song cut into segments, each with one look. Sections give the shape:
    chorus → candy type over a sunburst or a stage, verse → film strips or
    speech bubbles in turn, hook / intro / outro → the galaxy night. A gap
@@ -437,13 +430,14 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   }
   return y0 + (rs.length - 1) * lh + px / 2;
 }
-// a plain, readable subtitle in the lower third
+let subtitleCeiling = H;
+// Keep the subtitles above the controls in the interactive player.
 function subtitle(str, p, y) {
   const rs = rows(str, 50, W * .8);
   font(50, 800); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.globalAlpha = clamp(p * 4, 0, 1);
   rs.forEach((r, i) => {
-    const yy = (y || H * .9) - (rs.length - 1 - i) * 62;
+    const yy = Math.min(y || H * .9, subtitleCeiling) - (rs.length - 1 - i) * 62;
     ctx.lineJoin = 'round'; ctx.lineWidth = 10; ctx.strokeStyle = 'rgba(16,10,30,.85)';
     ctx.strokeText(r, W / 2, yy);
     ctx.fillStyle = '#ffffff'; ctx.fillText(r, W / 2, yy);
@@ -698,7 +692,8 @@ function stinger(seg, t) {
 /* ---------------------------- the scenes ---------------------------- */
 function whoOf(seg, k) { return LEAD[(seg.who + (k || 0)) % LEAD.length]; }
 function songFrame(t, T) {
-  const seg = segAt(t), idx = lineAt(t), line = idx >= 0 ? LINES[idx] : null;
+  const seg = segAt(t);
+  const { line, gap } = window.MV_STORY.__lyricCue(LINES, t, DUR, SONG.lang);
   const bt = beatN(t), age = t - seg.t0;
   if (seg.mode === 'night') {
     bgNight(t);
@@ -741,6 +736,16 @@ function songFrame(t, T) {
     petDesk(LEAD.slice(k).concat(LEAD.slice(0, k)), t, age);
     taskbar(t, 'PETS');
     if (line) subtitle(line.text, (t - line.t) / .6, H * .86);
+  }
+  if (gap) {
+    ctx.save();
+    font(34, 800);
+    const w = ctx.measureText(gap).width + 60;
+    ctx.fillStyle = 'rgba(28,19,45,.9)';
+    rrect((W - w) / 2, H * .26, w, 60, 22); ctx.fill();
+    ctx.fillStyle = '#fff5e5'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(gap, W / 2, H * .26 + 31);
+    ctx.restore();
   }
   stinger(seg, t);
   hud(t, T, seg, seg.mode === 'verse' || seg.mode === 'desk');
@@ -888,7 +893,7 @@ function load(id, cb, isCurrent) {
   if (songLoading.has(id)) return;
   songLoading.add(id);
   const s = document.createElement('script');
-  s.src = 'data/song/' + meta.id + '.js?v=2.7.0';
+  s.src = 'data/song/' + meta.id + '.js?v=2.7.1';
   s.onload = () => {
     songLoading.delete(id);
     const list = songWaiters[id] || [];
@@ -932,6 +937,8 @@ function player() {
   audio.preload = 'auto';
   audio.playsInline = true;
   let T = 0, playing = false, anchor = 0, last = performance.now(), idx = 0, lastUi = '';
+  const resetAnchor = (now = performance.now()) => { anchor = now - T * 1000 / audio.playbackRate; };
+  window.MV_SPEED(audio, () => resetAnchor());
   let unlockP = null, unlocking = false, request = 0;
   const LEN = () => HEAD + DUR + TAIL;
   const fmt = v => Math.floor(v / 60) + ':' + p2(Math.floor(v % 60));
@@ -965,7 +972,13 @@ function player() {
       if (audio.paused) { const p = audio.play(); if (p && p.catch) p.catch(() => { }); }
     } else if (!audio.paused && !unlocking) audio.pause();
   }
-  function seek(v) { T = clamp(v, 0, LEN() - .01); anchor = performance.now() - T * 1000; syncAudio(); }
+  function seek(v) {
+    T = clamp(v, 0, LEN() - .01);
+    const mediaTime = T - HEAD;
+    if (audio.src && mediaTime >= 0 && mediaTime < DUR) audio.currentTime = mediaTime;
+    resetAnchor();
+    syncAudio();
+  }
   function play() {
     if (!SONG) return;
     if (T >= LEN() - .1) T = 0;
@@ -982,7 +995,7 @@ function player() {
     if (!auto) { playing = false; unlocking = false; audio.pause(); }
     load(meta.id, () => {
       if (!(meta.audio && String(audio.src || '').endsWith(meta.audio))) audio.src = SONG.audio;
-      T = 0; anchor = performance.now();
+      T = 0; resetAnchor();
       try { localStorage.setItem('pv.song', SONG.id); } catch (e) { }
       try {
         const u = new URL(location.href);
@@ -1107,6 +1120,15 @@ function player() {
     if (wasIdle) wake();
     else { clearTimeout(idle); document.documentElement.classList.add('idle'); }
   });
+  function placeSubtitles() {
+    const bounds = cvs.getBoundingClientRect();
+    const scale = Math.min(bounds.width / W, bounds.height / H);
+    if (!scale) return;
+    const top = bounds.top + (bounds.height - H * scale) / 2;
+    subtitleCeiling = Math.max(H * .52, (bar.getBoundingClientRect().top - top) / scale - 38);
+  }
+  new ResizeObserver(placeSubtitles).observe(bar);
+
   function pin() {
     const vv = window.visualViewport;
     const vw = Math.max(2, vv ? vv.width : innerWidth);
@@ -1129,6 +1151,7 @@ function player() {
     bar.style.left = (ox + vw / 2) + 'px';
     bar.style.bottom = (gap + Math.max(14, edge('bottom'))) + 'px';
     bar.style.right = 'auto'; bar.style.top = 'auto';
+    placeSubtitles();
   }
   addEventListener('resize', pin);
   if (window.visualViewport) {
@@ -1143,6 +1166,7 @@ function player() {
     const dt = clamp((now - last) / 1000, .001, .1); last = now;
     if (!SONG || !window.__pv.ready()) {
       if (listOpen()) return;
+      if (playing) resetAnchor(now);
       ctx.fillStyle = '#120c22'; ctx.fillRect(0, 0, W, H);
       font(44, 700); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('載入中…', W / 2, H / 2);
@@ -1150,8 +1174,8 @@ function player() {
     }
     if (playing) {
       const st = T - HEAD;
-      if (!audio.paused && st >= 0 && st < DUR) { T = HEAD + audio.currentTime; anchor = now - T * 1000; }
-      else T = (now - anchor) / 1000;
+      if (!audio.paused && st >= 0 && st < DUR) { T = HEAD + audio.currentTime; resetAnchor(now); }
+      else T = (now - anchor) * audio.playbackRate / 1000;
       syncAudio();
       if (T >= LEN()) { pick(idx + 1, true); return; }
     }

@@ -16,7 +16,7 @@
     location.replace('./?song=s102#library');
   }
 </script>
-<link rel="stylesheet" href="css/archive.css?v=1">
+<link rel="stylesheet" href="css/archive.css?v=2">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23e6fc61%27/%3E%3Cpath d=%27M5 17h4l3-7 5 13 4-10 2 4h4%27 fill=%27none%27 stroke=%27%23211a22%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <style>
   :root{
@@ -119,6 +119,8 @@
     #play{width:42px;height:36px;font-size:15px}
   }
 #transport .nav{width:auto;padding:0 12px}
+#tools .speed{appearance:auto;color-scheme:light;min-width:52px;padding-inline:6px;cursor:pointer;font-variant-numeric:tabular-nums}
+@media(max-width:820px) and (min-height:501px){#tools{flex-wrap:wrap}}
 .volume{display:flex;align-items:center;gap:6px;min-width:0}
 .volume input{width:80px;accent-color:#bda3ff}
 .volume output{font-size:12px;min-width:32px}
@@ -144,6 +146,10 @@
     <div id="tools">
       <button class="b" id="bList" title="選歌" aria-label="歌曲"><span class="wide">歌曲</span><span class="ico">曲</span></button>
       <a class="b" id="bPixel" href="pixel.html" title="第二版本：像素 MV" aria-label="第二版本"><span class="wide">第二版本</span><span class="ico">像素</span></a>
+      <select class="b speed" id="playbackRate" aria-label="播放速度" title="播放速度">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option>
+        <option value="1.5">1.5×</option><option value="2">2×</option>
+      </select>
       <button class="b" id="bFull" title="全螢幕" aria-label="全螢幕"><span class="wide">全螢幕</span><span class="ico">全</span></button>
     </div>
   </div>
@@ -207,7 +213,7 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow"><span>01</span> / PV LIBRARY</p>
-            <h2 id="library-title">曲庫</h2>
+            <h2 id="library-title">歌詞 PV</h2>
             <p>選一首歌，從喜歡的語言開始看 PV。</p>
           </div>
           <div id="languageFilters" class="filters" role="group" aria-label="曲庫語言篩選"></div>
@@ -270,12 +276,12 @@
   </figure>
 </dialog>
 
-<script defer src="data/songs.js?v=2.6.0"></script>
+<script defer src="data/songs.js?v=2.6.1"></script>
 <script defer src="data/cast.js?v=2.11.0"></script>
 <script defer src="js/puppet.js?v=2.12.0"></script>
-<script defer src="js/player-controls.js?v=2.4.0"></script>
-<script defer src="js/story.js?v=2.7.0"></script>
+<script defer src="js/player-controls.js?v=2.5.0"></script>
+<script defer src="js/story.js?v=2.8.0"></script>
 <script defer src="js/archive.js?v=1"></script>
-<script defer src="js/pv.js?v=2.8.0"></script>
+<script defer src="js/pv.js?v=2.8.1"></script>
 </body>
 </html>
