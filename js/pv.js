@@ -398,17 +398,6 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
     }
   };
   evenRows();
-  // Non-Chinese lyric text may shrink so the Chinese line fits underneath it.
-  if (opt.translation && opt.limit != null) {
-    const blockBottom = () => cy + ((rs.length - 1) * px * (latin ? 1.6 : 1.18)) / 2 + px / 2;
-    while (px > 36) {
-      const zh = Math.min(48, Math.max(34, px * .58));
-      if (blockBottom() + 14 + zh <= opt.limit) break;
-      px -= 4;
-      rs = layout(px);
-      evenRows();
-    }
-  }
   font(px);
   const lh = px * (latin ? 1.6 : 1.18), y0 = cy - (rs.length - 1) * lh / 2;
   let k = 0;
@@ -444,7 +433,7 @@ function candy(str, cx, cy, size, maxW, appear, t, seed, opt) {
   }
   const bottom = y0 + (rs.length - 1) * lh + px / 2;
   if (opt.translation) {
-    const zh = Math.min(48, Math.max(34, px * .58));
+    const zh = Math.min(64, Math.max(52, Math.round(px * .42)));
     const step = (opt.step || .05) * Math.min(1, [...str].length / Math.max(1, [...opt.translation].length));
     candy(opt.translation, cx, bottom + 8 + zh * .55, zh, maxW, appear, t, seed,
           { hop: opt.hop, maxRows: 1, step });
@@ -800,9 +789,8 @@ function songFrame(t, T, seg) {
     lineup(CHORUS, t, { y: H * 1.0, h: H * (n > 2 ? .6 : .68), move: DANCE, stagger: true });
     ctx.restore();
     if (line) {
-      const top = Math.min(...CHORUS.map(who => MV_PUPPET.joints(who.id)?.top ?? H * .42));
-      candy(line.text, W / 2, H * .25, 150, W * .86, line.t - .05, t, line.idx * 3,
-            { hop: true, maxRows: 2, translation: line.translation, limit: H + (top - H) * zoom - 8 });
+      candy(line.text, W / 2, H * .22, 132, W * .86, line.t - .05, t, line.idx * 3,
+            { hop: true, maxRows: 2, translation: line.translation });
     }
   } else if (seg.mode === 'desk') {
     bgDesk(t);
