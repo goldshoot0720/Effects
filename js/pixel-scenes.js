@@ -450,7 +450,7 @@ const art = {
     const cap = g.shot.caption || '';
     // 威力彩第一區只到 38；大樂透可以到 49。539 才用 39。
     const nums = cap.includes('大樂透') ? ['05', '12', '18', '23', '49']
-      : cap.includes('539') ? ['05', '12', '18', '23', '39']
+      : cap.includes('539') || cap.includes('明天也買') ? ['02', '09', '17', '26', '35']
       : ['05', '12', '18', '23', '31'];
     B.O(8, 22, 84, 32, '#55446c');
     for (let i = 0; i < nums.length; i++) {
