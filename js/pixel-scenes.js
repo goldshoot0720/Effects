@@ -442,11 +442,16 @@ const art = {
   },
   receipt(B) { ticket(B, 24, 10, 52, 46, '頭獎'); star(B, 79, 16, yellow); },
   lottery(B, g) {
+    const cap = g.shot.caption || '';
+    // 威力彩第一區只到 38；大樂透可以到 49。539 才用 39。
+    const nums = cap.includes('大樂透') ? ['05', '12', '18', '23', '49']
+      : cap.includes('539') ? ['05', '12', '18', '23', '39']
+      : ['05', '12', '18', '23', '31'];
     B.O(8, 22, 84, 32, '#55446c');
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < nums.length; i++) {
       const x = 13 + i * 15, y = 27 + Math.round(Math.sin(g.t * 5 + i) * (1 - Math.min(1, g.shotP * 5)) * 6);
       B.O(x, y, 13, 18, [pink, yellow, green, purple, cyan][i]);
-      B.T(['05', '12', '18', '23', '39'][i], x + 6.5, y + 5, 7);
+      B.T(nums[i], x + 6.5, y + 5, 7);
     }
     B.R(12, 50, 76, 2, yellow);
   },
